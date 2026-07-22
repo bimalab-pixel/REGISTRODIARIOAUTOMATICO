@@ -882,21 +882,21 @@ async function generarInforme() {
 
   if (modo === "resumido") {
     reglaDetalle = `
-3. Estilo RESUMIDO Y DIRECTO:
+4. Estilo RESUMIDO Y DIRECTO:
    - Mantén "Hallazgos" y "Acciones Ejecutadas" en oraciones muy cortas y directas (máximo 1 o 2 oraciones breves por columna).`;
-    temp = 0.1;
+    temp = 0.25;
   } else if (modo === "balanceado") {
     reglaDetalle = `
-3. Estilo BALANCEADO:
+4. Estilo BALANCEADO:
    - Describe con claridad técnica el hallazgo y la acción realizada por columna.
    - Incluye la consejería dada y el acuerdo alcanzado de forma equilibrada.`;
-    temp = 0.2;
+    temp = 0.35;
   } else if (modo === "detallado") {
     reglaDetalle = `
-3. Estilo EXTENSO Y DETALLADO:
+4. Estilo EXTENSO Y DETALLADO:
    - Amplía la descripción de los "Hallazgos" incluyendo la condición detectada, riesgos en la vivienda e impacto.
    - En "Acciones Ejecutadas", detalla ampliamente la acción técnica, la educación brindada y el compromiso redactado como "Acuerdo: [detalle extenso del compromiso]".`;
-    temp = 0.3;
+    temp = 0.45;
   }
 
   const promptSystem = `
@@ -912,13 +912,20 @@ REGLAS DE FORMATO Y REDACCIÓN:
    - Para bebés o niños pequeños, conserva la especificación exacta de años y meses. Ejemplo: "1 año 2 meses", "8 meses".
 
 2. Estilo de Redacción y Tiempo Verbal:
-   - Utiliza redacción técnica formal para informes diarios de campo (pretérito perfecto impersonal: "Se identificó...", "Se brindó consejería...", "Se inspeccionó...").
-   - La sección de acuerdos siempre debe redactarse hacia el compromiso establecido. Ejemplo: "Acuerdo: El responsable se compromete a...".
+   - Utiliza redacción técnica formal para informes diarios de campo (pretérito perfecto impersonal).
+   - La sección de acuerdos siempre debe comunicar claramente el compromiso establecido con la persona o su responsable.
+
+3. VARIEDAD OBLIGATORIA EN LA REDACCIÓN (muy importante):
+   - NUNCA repitas la misma frase inicial en varias filas, en NINGUNA de las tres partes de la columna de acciones (consejería, recomendación y acuerdo). Cada paciente debe leerse como una observación distinta escrita por una persona, no como una plantilla copiada y rellenada.
+   - Para la columna "Hallazgos en la Visita", varía el verbo y la construcción inicial usando opciones como: "Se identificó...", "Se detectó...", "Se constató...", "Se evidenció...", "Se observó que...", "La persona presenta...", "Durante la visita se encontró...", "Se evaluó la condición de...", entre otras equivalentes.
+   - Para la parte de consejería/recomendación, varía el inicio usando opciones como: "Se brindó consejería sobre...", "Se orientó a la persona respecto a...", "Se recomendó...", "Se educó sobre...", "Se realizó consejería enfocada en...", "Se explicó la importancia de...", entre otras equivalentes.
+   - Para la parte del ACUERDO específicamente, varía también la redacción usando opciones como: "Acuerdo: se compromete a...", "Como compromiso, la persona acordó...", "Se estableció el compromiso de...", "Acuerdo alcanzado: la persona se compromete a...", "Quedó como compromiso...", "La persona/el responsable acordó...", entre otras equivalentes. NUNCA uses la misma fórmula de acuerdo en dos pacientes seguidos.
+   - Adapta la redacción al caso específico de cada paciente (sus notas) en lugar de generalizar con una fórmula única.
 
 ${reglaDetalle}
 
-3. Procesa TODOS los pacientes listados sin omitir a ninguno.
-4. Devuelve ÚNICAMENTE la tabla TSV limpia (sin marcas markdown \`\`\`tsv ni introducciones).
+5. Procesa TODOS los pacientes listados sin omitir a ninguno.
+6. Devuelve ÚNICAMENTE la tabla TSV limpia (sin marcas markdown \`\`\`tsv ni introducciones).
 
 Pacientes ingresados por el usuario:
 ${datosEntradaTexto}
