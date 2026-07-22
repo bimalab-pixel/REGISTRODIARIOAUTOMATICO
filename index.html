@@ -384,6 +384,25 @@
       margin-left: 6px;
     }
 
+    .btn-instalar-app {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: linear-gradient(135deg, #1a56db, #1e40af);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 14px;
+      font-weight: 700;
+      margin: 12px 0;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(26,86,219,0.3);
+    }
+    .btn-instalar-app:hover { background: linear-gradient(135deg, #1e40af, #1a56db); }
+
     /* Indicador de borrador autoguardado */
     .borrador-aviso {
       display: flex;
@@ -481,6 +500,10 @@
     </div>
     <button class="btn-config" title="Configurar API Key" onclick="abrirModal()">⚙️</button>
   </div>
+
+  <button class="btn-instalar-app" id="btnInstalarApp" onclick="instalarApp()" style="display:none;">
+    📲 Instalar esta App en el Celular
+  </button>
 
   <!-- FORMULARIO PRINCIPAL DE ENTRADA -->
   <div class="card">
@@ -1154,6 +1177,61 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.error('Error registrando Service Worker:', err));
   });
 }
+
+/* ===================== BOTÓN "INSTALAR APP" ===================== */
+
+let promptDeInstalacionDiferido = null;
+
+function esIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function appYaInstalada() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+// Chrome/Android disparan este evento cuando la app es instalable
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  promptDeInstalacionDiferido = event;
+  if (!appYaInstalada()) {
+    document.getElementById('btnInstalarApp').style.display = 'flex';
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('btnInstalarApp').style.display = 'none';
+  promptDeInstalacionDiferido = null;
+});
+
+async function instalarApp() {
+  if (promptDeInstalacionDiferido) {
+    promptDeInstalacionDiferido.prompt();
+    const eleccion = await promptDeInstalacionDiferido.userChoice;
+    if (eleccion.outcome === 'accepted') {
+      document.getElementById('btnInstalarApp').style.display = 'none';
+    }
+    promptDeInstalacionDiferido = null;
+    return;
+  }
+
+  // iOS Safari no soporta beforeinstallprompt: mostrar instrucciones manuales
+  if (esIOS()) {
+    alert('Para instalar esta app en iPhone:\n\n1. Toca el botón "Compartir" (el cuadrado con la flecha hacia arriba) en la barra de Safari.\n2. Selecciona "Agregar a pantalla de inicio".\n3. Toca "Agregar".');
+  } else {
+    alert('Para instalar la app: abre el menú (⋮) de tu navegador y selecciona "Instalar aplicación" o "Agregar a pantalla de inicio".');
+  }
+}
+
+// Al cargar, si ya está instalada o el navegador no soporta el aviso automático,
+// no dejamos el botón oculto para siempre: en Android sin el evento aún disponible
+// se muestra igual para que el usuario pueda ver las instrucciones manuales.
+window.addEventListener('load', () => {
+  if (appYaInstalada()) return;
+  if (esIOS()) {
+    document.getElementById('btnInstalarApp').style.display = 'flex';
+  }
+});
 </script>
 
 </body>
