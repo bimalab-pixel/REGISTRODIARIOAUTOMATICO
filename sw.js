@@ -3,20 +3,20 @@
 // Network Only para las peticiones a la IA (nunca deben quedar cacheadas
 // datos de pacientes ni la respuesta con la API key).
 
-const CACHE_NAME = 'registros-salud-v1';
+const CACHE_NAME = 'registros-salud-v2';
 
 const ARCHIVOS_NUCLEO = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-72.png',
-  './icons/icon-96.png',
-  './icons/icon-128.png',
-  './icons/icon-144.png',
-  './icons/icon-152.png',
-  './icons/icon-192.png',
-  './icons/icon-384.png',
-  './icons/icon-512.png'
+  './icon-72.png',
+  './icon-96.png',
+  './icon-128.png',
+  './icon-144.png',
+  './icon-152.png',
+  './icon-192.png',
+  './icon-384.png',
+  './icon-512.png'
 ];
 
 // Instalación: precachear el shell de la app
