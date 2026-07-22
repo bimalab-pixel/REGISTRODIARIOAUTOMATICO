@@ -24,18 +24,56 @@
 
   <style>
     :root {
-      --primary: #0056b3;
-      --primary-hover: #003d80;
-      --bg-color: #f4f7f9;
+      --primary: #1a56db;
+      --primary-light: #3b82f6;
+      --primary-dark: #1240a8;
+      --primary-hover: #143fad;
+      --bg-color: #eef2f9;
       --card-bg: #ffffff;
-      --text-main: #2d3748;
-      --text-muted: #718096;
-      --border-color: #cbd5e0;
-      --success: #28a745;
-      --success-hover: #218838;
+      --text-main: #212b3d;
+      --text-muted: #6b7688;
+      --border-color: #d6dde8;
+      --success: #16a34a;
+      --success-light: #22c55e;
+      --success-dark: #0f7a37;
+      --success-hover: #128a3e;
       --danger: #e53e3e;
+      --danger-light: #f56565;
+      --danger-dark: #b91c1c;
       --danger-hover: #c53030;
       --accent: #ebf8ff;
+
+      /* Color de acento para la sección de Notas Rápidas (naranja/ámbar) */
+      --notas-color: #d97706;
+      --notas-light: #f59e0b;
+      --notas-dark: #b45309;
+      --notas-bg: #fffbeb;
+      --notas-border: #fde68a;
+
+      /* Color de acento para el Registro Oficial Generado (verde esmeralda) */
+      --resultado-color: #0f9d6e;
+      --resultado-light: #10b981;
+      --resultado-dark: #0a7a55;
+
+      /* Color de acento para el Historial de Informes (morado) */
+      --historial-color: #7c3aed;
+      --historial-light: #8b5cf6;
+      --historial-dark: #5b21b6;
+      --historial-bg: #f5f3ff;
+      --historial-border: #ddd6fe;
+
+      /* Color de acento para el Historial de Notas Diarias (turquesa) */
+      --notashist-color: #0891b2;
+      --notashist-light: #06b6d4;
+      --notashist-dark: #0e7490;
+      --notashist-bg: #ecfeff;
+      --notashist-border: #a5f3fc;
+
+      /* Color del botón principal / centro de la app: "Generar Registro Oficial" (fucsia vibrante) */
+      --cta-color: #c026d3;
+      --cta-light: #e879f9;
+      --cta-dark: #86198f;
+      --cta-glow: rgba(232,121,249,0.65);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,10 +89,10 @@
 
     /* Encabezado Principal */
     .header-card {
-      background: var(--card-bg);
-      border-radius: 12px;
+      background: linear-gradient(135deg, #ffffff 0%, #f0f6ff 100%);
+      border-radius: 14px;
       padding: 18px 20px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      box-shadow: 0 6px 18px rgba(20,40,80,0.08);
       margin-bottom: 15px;
       display: flex;
       justify-content: space-between;
@@ -112,11 +150,36 @@
     /* Tarjetas del Formulario */
     .card {
       background: var(--card-bg);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 18px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-      margin-bottom: 15px;
+      box-shadow: 0 6px 18px rgba(20,40,80,0.08), 0 1px 3px rgba(20,40,80,0.06);
+      margin-bottom: 18px;
+      border-top: 5px solid var(--border-color);
+      position: relative;
     }
+
+    /* Cada sección tiene su propio color de identidad para que se distingan a simple vista */
+    .card-notas { border-top-color: var(--notas-color); background: linear-gradient(180deg, var(--notas-bg) 0%, #ffffff 90px); }
+    .card-resultado.output-card { border-top-color: var(--resultado-color); }
+    .card-historial-informes { border-top-color: var(--historial-color); }
+    .card-historial-notas { border-top-color: var(--notashist-color); }
+
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+    .section-tag.tag-notas { background: #fef3c7; color: var(--notas-dark); }
+    .section-tag.tag-resultado { background: #d1fae5; color: var(--resultado-dark); }
+    .section-tag.tag-historial { background: var(--historial-bg); color: var(--historial-dark); }
+    .section-tag.tag-notashist { background: var(--notashist-bg); color: var(--notashist-dark); }
 
     label { 
       font-size: 12px; 
@@ -130,23 +193,36 @@
 
     select {
       width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
+      padding: 12px 14px;
+      border: none;
+      border-radius: 8px;
       font-size: 13px;
+      font-weight: 600;
       font-family: inherit;
-      color: var(--text-main);
-      background-color: #fafbfc;
-      transition: border-color 0.2s ease;
+      color: white;
+      background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary) 100%);
+      box-shadow: 0 4px 0 var(--primary-dark), 0 6px 12px rgba(26,86,219,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: linear-gradient(180deg, var(--primary-light) 0%, var(--primary) 100%), url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M7 10l5 5 5-5z'/></svg>");
+      background-repeat: no-repeat, no-repeat;
+      background-position: 0 0, right 12px center;
+      background-size: 100% 100%, 18px 18px;
     }
+    select:hover { filter: brightness(1.06); }
+    select:focus { outline: none; box-shadow: 0 4px 0 var(--primary-dark), 0 0 0 3px rgba(59,130,246,0.35); }
+    select option { background: white; color: var(--text-main); font-weight: 500; }
 
     /* Selector de Nivel de Detalle */
     .nivel-box {
       background: var(--accent);
       border: 1px solid #bee3f8;
       padding: 12px;
-      border-radius: 8px;
+      border-radius: 10px;
       margin-bottom: 15px;
+      box-shadow: inset 0 1px 3px rgba(26,86,219,0.06);
     }
 
     /* Estilos de Tablas */
@@ -177,6 +253,20 @@
       border-bottom: 2px solid var(--border-color);
       white-space: normal;
       word-wrap: break-word;
+    }
+
+    /* Tabla dentro de la sección de Notas Rápidas: cabecera color ámbar */
+    .card-notas th {
+      background-color: #fef3c7;
+      color: var(--notas-dark);
+      border-bottom: 2px solid var(--notas-border);
+    }
+
+    /* Tabla del Registro Oficial Generado: cabecera color verde */
+    .card-resultado th {
+      background-color: #d1fae5;
+      color: var(--resultado-dark);
+      border-bottom: 2px solid #a7f3d0;
     }
 
     td {
@@ -214,91 +304,164 @@
     tr:nth-child(even) { background-color: #f8fafc; }
     tr:hover { background-color: #edf2f7; }
 
-    /* Botones */
+    /* Botones -- estilo 3D "presionable": gradiente + sombra dura inferior que se aplana al hacer clic */
     .btn-group {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
     }
 
-    .btn-delete {
-      background: #fed7d7;
-      color: #9b2c2c;
+    .btn-3d {
       border: none;
-      border-radius: 4px;
-      padding: 8px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+      transform: translateY(0);
+    }
+    .btn-3d:hover { filter: brightness(1.06); }
+    .btn-3d:active { transform: translateY(3px); }
+
+    .btn-delete {
+      background: linear-gradient(180deg, var(--danger-light), var(--danger));
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
       cursor: pointer;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
+      box-shadow: 0 3px 0 var(--danger-dark), 0 4px 6px rgba(229,62,62,0.35);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-delete:hover { background: #feb2b2; }
+    .btn-delete:hover { filter: brightness(1.08); }
+    .btn-delete:active { transform: translateY(3px); box-shadow: 0 0 0 var(--danger-dark); }
 
     .btn-add-row {
-      background: #edf2f7;
-      color: var(--primary);
-      border: 2px dashed var(--border-color);
-      border-radius: 8px;
-      padding: 12px 15px;
-      font-size: 13px;
-      font-weight: 600;
+      background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary) 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 15px;
+      font-size: 14px;
+      font-weight: 700;
       width: 100%;
       cursor: pointer;
       display: flex;
       justify-content: center;
       align-items: center;
       gap: 6px;
-      margin-bottom: 15px;
-      transition: all 0.2s ease;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 0 var(--primary-dark), 0 6px 12px rgba(26,86,219,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-add-row:hover { background: var(--accent); border-color: var(--primary); }
+    .btn-add-row:hover { filter: brightness(1.07); }
+    .btn-add-row:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--primary-dark), 0 2px 4px rgba(26,86,219,0.3); }
 
+    /* Botón CENTRAL de la app: distinto en color y con movimiento para que resalte sobre los demás */
     .btn-submit {
-      background: var(--primary);
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--cta-light) 0%, var(--cta-color) 100%);
       color: white;
       border: none;
-      border-radius: 8px;
-      padding: 14px 20px;
-      font-size: 15px;
-      font-weight: 600;
+      border-radius: 12px;
+      padding: 17px 20px;
+      font-size: 15.5px;
+      font-weight: 800;
       width: 100%;
       cursor: pointer;
       display: flex;
       justify-content: center;
       align-items: center;
       gap: 8px;
-      transition: background 0.2s ease;
+      letter-spacing: 0.2px;
+      box-shadow: 0 5px 0 var(--cta-dark), 0 8px 18px rgba(192,38,211,0.4);
+      transition: box-shadow 0.08s ease, filter 0.15s ease;
+      animation: ctaLatido 1.8s ease-in-out infinite;
     }
-    .btn-submit:hover { background: var(--primary-hover); }
+    .btn-submit span { position: relative; z-index: 2; }
+    .btn-submit::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -60%;
+      width: 35%; height: 100%;
+      background: linear-gradient(115deg, transparent, rgba(255,255,255,0.65), transparent);
+      transform: skewX(-20deg);
+      z-index: 1;
+      pointer-events: none;
+      animation: ctaBrillo 2.6s ease-in-out infinite;
+    }
+    @keyframes ctaLatido {
+      0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 5px 0 var(--cta-dark), 0 8px 18px rgba(192,38,211,0.4); }
+      50% { transform: translateY(-2px) scale(1.015); box-shadow: 0 7px 0 var(--cta-dark), 0 12px 26px var(--cta-glow); }
+    }
+    @keyframes ctaBrillo {
+      0% { left: -60%; }
+      55% { left: 130%; }
+      100% { left: 130%; }
+    }
+    .btn-submit:hover { filter: brightness(1.08); }
+    .btn-submit:active {
+      animation-play-state: paused;
+      transform: translateY(4px) scale(1);
+      box-shadow: 0 1px 0 var(--cta-dark), 0 2px 4px rgba(192,38,211,0.4);
+    }
 
     .btn-copy {
-      background: var(--success);
+      background: linear-gradient(180deg, var(--success-light), var(--success));
       color: white;
       border: none;
-      border-radius: 6px;
-      padding: 10px 16px;
+      border-radius: 8px;
+      padding: 11px 18px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
+      box-shadow: 0 4px 0 var(--success-dark), 0 6px 12px rgba(22,163,74,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-copy:hover { background: var(--success-hover); }
+    .btn-copy:hover { filter: brightness(1.07); }
+    .btn-copy:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--success-dark), 0 2px 4px rgba(22,163,74,0.3); }
 
     .btn-save-historial {
-      background: #3182ce;
+      background: linear-gradient(180deg, var(--primary-light), var(--primary));
       color: white;
       border: none;
-      border-radius: 6px;
-      padding: 10px 16px;
+      border-radius: 8px;
+      padding: 11px 18px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
+      box-shadow: 0 4px 0 var(--primary-dark), 0 6px 12px rgba(26,86,219,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-save-historial:hover { background: #2b6cb0; }
+    .btn-save-historial:hover { filter: brightness(1.07); }
+    .btn-save-historial:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--primary-dark), 0 2px 4px rgba(26,86,219,0.3); }
+
+    /* Botón para guardar las notas rápidas (borrador) en el historial diario */
+    .btn-save-notas {
+      background: linear-gradient(180deg, var(--notas-light), var(--notas-color));
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 0 var(--notas-dark), 0 6px 12px rgba(217,119,6,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+    }
+    .btn-save-notas:hover { filter: brightness(1.07); }
+    .btn-save-notas:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--notas-dark), 0 2px 4px rgba(217,119,6,0.3); }
 
     /* Área de Resultados */
     .output-card { display: none; }
@@ -315,64 +478,114 @@
     /* SECCIÓN HISTORIAL DE REGISTROS */
     .historial-card { margin-top: 25px; }
     .historial-item {
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
+      border: 1px solid var(--historial-border);
+      border-left: 4px solid var(--historial-color);
+      border-radius: 9px;
       padding: 12px 15px;
       margin-bottom: 10px;
-      background: #fafbfc;
+      background: #fdfcff;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 10px;
+      box-shadow: 0 2px 6px rgba(124,58,237,0.06);
     }
-    .historial-info strong { color: var(--primary); font-size: 14px; }
+    .historial-info strong { color: var(--historial-dark); font-size: 14px; }
     .historial-info p { font-size: 12px; color: var(--text-muted); }
+
+    /* Variante turquesa para los ítems del historial de Notas Diarias */
+    .historial-item-notas {
+      border: 1px solid var(--notashist-border);
+      border-left: 4px solid var(--notashist-color);
+      border-radius: 9px;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      background: #fbfeff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      box-shadow: 0 2px 6px rgba(8,145,178,0.06);
+    }
+    .historial-item-notas .historial-info strong { color: var(--notashist-dark); font-size: 14px; }
+    .historial-item-notas .historial-info p { font-size: 12px; color: var(--text-muted); }
     
     .btn-danger-sm {
-      background: #fff5f5;
-      color: var(--danger);
+      background: linear-gradient(180deg, #fff5f5, #fed7d7);
+      color: var(--danger-dark);
       border: 1px solid #feb2b2;
-      border-radius: 6px;
-      padding: 6px 12px;
+      border-radius: 7px;
+      padding: 7px 13px;
       font-size: 12px;
       cursor: pointer;
-      font-weight: 600;
+      font-weight: 700;
+      box-shadow: 0 2px 0 #feb2b2;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-danger-sm:hover { background: #fed7d7; }
+    .btn-danger-sm:hover { filter: brightness(0.98); background: linear-gradient(180deg, #fed7d7, #feb2b2); }
+    .btn-danger-sm:active { transform: translateY(2px); box-shadow: 0 0 0 #feb2b2; }
 
     .btn-secondary-sm {
-      background: #edf2f7;
+      background: linear-gradient(180deg, #f7fafc, #e2e8f0);
       color: var(--text-main);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 6px 12px;
+      border-radius: 7px;
+      padding: 7px 13px;
       font-size: 12px;
       cursor: pointer;
-      font-weight: 600;
+      font-weight: 700;
+      box-shadow: 0 2px 0 #c8d1de;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-secondary-sm:hover { background: #e2e8f0; }
+    .btn-secondary-sm:hover { filter: brightness(0.98); }
+    .btn-secondary-sm:active { transform: translateY(2px); box-shadow: 0 0 0 #c8d1de; }
 
-    .badge-status { font-size: 11px; background: #c6f6d5; color: #22543d; padding: 3px 8px; border-radius: 12px; font-weight: 600; }
+    .badge-status { font-size: 11px; background: #c6f6d5; color: #22543d; padding: 3px 8px; border-radius: 12px; font-weight: 700; }
     .loading-text { text-align: center; padding: 20px; color: var(--text-muted); font-weight: 500; }
 
     .btn-toggle-historial {
-      background: var(--accent);
-      color: var(--primary);
-      border: 1px solid #bee3f8;
-      border-radius: 8px;
-      padding: 12px 15px;
+      background: linear-gradient(180deg, #ffffff, var(--historial-bg));
+      color: var(--historial-dark);
+      border: 1px solid var(--historial-border);
+      border-radius: 10px;
+      padding: 13px 15px;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 800;
       width: 100%;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
-      transition: background 0.2s ease;
+      box-shadow: 0 3px 0 var(--historial-border), 0 4px 10px rgba(124,58,237,0.12);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-toggle-historial:hover { background: #d9f0ff; }
+    .btn-toggle-historial:hover { filter: brightness(0.98); }
+    .btn-toggle-historial:active { transform: translateY(2px); }
+
+    /* Toggle del historial de notas diarias (color turquesa) */
+    .btn-toggle-notashist {
+      background: linear-gradient(180deg, #ffffff, var(--notashist-bg));
+      color: var(--notashist-dark);
+      border: 1px solid var(--notashist-border);
+      border-radius: 10px;
+      padding: 13px 15px;
+      font-size: 13px;
+      font-weight: 800;
+      width: 100%;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 3px 0 var(--notashist-border), 0 4px 10px rgba(8,145,178,0.12);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+      margin-top: 4px;
+    }
+    .btn-toggle-notashist:hover { filter: brightness(0.98); }
+    .btn-toggle-notashist:active { transform: translateY(2px); }
 
     .badge-contador {
       background: var(--primary);
@@ -383,6 +596,8 @@
       border-radius: 10px;
       margin-left: 6px;
     }
+    .badge-contador.badge-notas { background: var(--notashist-color); }
+    .badge-contador.badge-informes { background: var(--historial-color); }
 
     .btn-instalar-app {
       display: flex;
@@ -390,18 +605,20 @@
       justify-content: center;
       gap: 8px;
       width: 100%;
-      background: linear-gradient(135deg, #1a56db, #1e40af);
+      background: linear-gradient(180deg, #3b82f6, #1a56db);
       color: white;
       border: none;
-      border-radius: 10px;
-      padding: 13px;
+      border-radius: 12px;
+      padding: 14px;
       font-size: 14px;
       font-weight: 700;
       margin: 12px 0;
       cursor: pointer;
-      box-shadow: 0 3px 8px rgba(26,86,219,0.3);
+      box-shadow: 0 4px 0 var(--primary-dark), 0 8px 16px rgba(26,86,219,0.35);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-instalar-app:hover { background: linear-gradient(135deg, #1e40af, #1a56db); }
+    .btn-instalar-app:hover { filter: brightness(1.05); }
+    .btn-instalar-app:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--primary-dark), 0 2px 4px rgba(26,86,219,0.35); }
 
     /* Indicador de borrador autoguardado */
     .borrador-aviso {
@@ -421,18 +638,25 @@
       visibility: visible;
     }
     .btn-limpiar-form {
-      background: transparent;
-      color: var(--danger);
-      border: 1px dashed #feb2b2;
-      border-radius: 6px;
-      padding: 8px 12px;
-      font-size: 12px;
-      font-weight: 600;
+      background: linear-gradient(180deg, var(--danger-light) 0%, var(--danger) 100%);
+      color: white;
+      border: none;
+      border-radius: 9px;
+      padding: 11px 12px;
+      font-size: 13px;
+      font-weight: 700;
       cursor: pointer;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       width: 100%;
+      box-shadow: 0 4px 0 var(--danger-dark), 0 6px 12px rgba(229,62,62,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
     }
-    .btn-limpiar-form:hover { background: #fff5f5; }
+    .btn-limpiar-form:hover { filter: brightness(1.07); }
+    .btn-limpiar-form:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--danger-dark), 0 2px 4px rgba(229,62,62,0.3); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .btn-submit, .btn-submit::after { animation: none !important; }
+    }
 
     @media (max-width: 768px) {
       body { padding: 10px 5px; }
@@ -484,7 +708,7 @@
       td textarea { font-size: 16px; padding: 8px 6px; }
       select, input[type="text"] { font-size: 16px; padding: 12px; }
       .btn-delete { padding: 10px 14px; font-size: 15px; }
-      .btn-add-row, .btn-submit { padding: 14px; font-size: 14px; }
+      .btn-add-row, .btn-submit, .btn-save-notas { padding: 14px; font-size: 14px; }
     }
   </style>
 </head>
@@ -506,7 +730,8 @@
   </button>
 
   <!-- FORMULARIO PRINCIPAL DE ENTRADA -->
-  <div class="card">
+  <div class="card card-notas">
+    <span class="section-tag tag-notas">🟠 Captura del día</span>
 
     <button class="btn-limpiar-form" onclick="limpiarFormularioCompleto()">🧹 Empezar Registro Nuevo (Borrar Borrador)</button>
 
@@ -548,6 +773,10 @@
       ➕ Agregar Nuevo Paciente a la Lista
     </button>
 
+    <button class="btn-save-notas" onclick="guardarNotasEnHistorial()">
+      💾 Guardar Notas en Historial Diario
+    </button>
+
     <button class="btn-submit" onclick="generarInforme()">
       <span>✨ Generar Registro Oficial en Tabla</span>
     </button>
@@ -555,8 +784,27 @@
     <div class="borrador-aviso" id="avisoBorrador">💾 Borrador guardado automáticamente en este dispositivo</div>
   </div>
 
+  <!-- SECCIÓN HISTORIAL DE NOTAS DIARIAS (guardado local del borrador de campo) -->
+  <div class="card card-historial-notas">
+    <span class="section-tag tag-notashist">🟦 Respaldo diario</span>
+    <button class="btn-toggle-notashist" onclick="toggleHistorialNotas()" id="btnToggleHistorialNotas">
+      <span>🗂️ Ver Historial de Notas Guardadas <span class="badge-contador badge-notas" id="contadorHistorialNotas">0</span></span>
+      <span id="flechaHistorialNotas">▼</span>
+    </button>
+
+    <div id="listaHistorialNotas" style="display:none;">
+      <div style="display:flex; justify-content:flex-end; margin: 14px 0 10px;">
+        <button class="btn-danger-sm" onclick="vaciarHistorialNotas()" title="Vaciar todo el historial de notas">🗑️ Vaciar Todo</button>
+      </div>
+      <div id="contenidoHistorialNotas">
+        <p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No hay notas guardadas en el historial aún.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- SECCIÓN DE RESULTADOS -->
-  <div class="card output-card" id="resultContainer">
+  <div class="card card-resultado output-card" id="resultContainer">
+    <span class="section-tag tag-resultado">🟢 Informe final</span>
     <div class="output-header">
       <h3>📊 Registro Oficial Generado <span class="badge-status">Formato Formal Completo</span></h3>
       <div class="btn-group">
@@ -569,9 +817,10 @@
   </div>
 
   <!-- SECCIÓN HISTORIAL LOCAL -->
-  <div class="card historial-card">
+  <div class="card card-historial-informes historial-card">
+    <span class="section-tag tag-historial">🟣 Informes guardados</span>
     <button class="btn-toggle-historial" onclick="toggleHistorial()" id="btnToggleHistorial">
-      <span>🗂️ Ver Historial de Informes Guardados <span class="badge-contador" id="contadorHistorial">0</span></span>
+      <span>🗂️ Ver Historial de Informes Guardados <span class="badge-contador badge-informes" id="contadorHistorial">0</span></span>
       <span id="flechaHistorial">▼</span>
     </button>
 
@@ -614,6 +863,7 @@ window.onload = function() {
   restaurarBorradorResultado(); // Si había un resultado sin guardar en el historial, se recupera
   document.querySelectorAll('textarea').forEach(autoAjustarTexto);
   cargarHistorialUI();
+  cargarHistorialNotasUI();
 };
 
 function autoAjustarTexto(elemento) {
@@ -888,7 +1138,8 @@ async function generarInforme() {
   } else if (modo === "balanceado") {
     reglaDetalle = `
 4. Estilo BALANCEADO:
-   - Describe con claridad técnica el hallazgo y la acción realizada por columna.
+   - Si la nota original es una idea básica o muy breve (ej: "con gripe", "citología atrasada", "faltista de control"), NO la traduzcas en una sola oración calcada; desarróllala un poco más añadiendo el contexto clínico o situacional relevante (por ejemplo: por qué es importante el caso, qué implica la condición, o qué se observó adicionalmente), en 2 oraciones cortas para "Hallazgos".
+   - Describe con claridad técnica el hallazgo y la acción realizada por columna, con un nivel de detalle intermedio: ni tan escueto como una lista de puntos, ni tan extenso como un párrafo largo.
    - Incluye la consejería dada y el acuerdo alcanzado de forma equilibrada.`;
     temp = 0.35;
   } else if (modo === "detallado") {
@@ -917,6 +1168,7 @@ REGLAS DE FORMATO Y REDACCIÓN:
 
 3. VARIEDAD OBLIGATORIA EN LA REDACCIÓN (muy importante):
    - NUNCA repitas la misma frase inicial en varias filas, en NINGUNA de las tres partes de la columna de acciones (consejería, recomendación y acuerdo). Cada paciente debe leerse como una observación distinta escrita por una persona, no como una plantilla copiada y rellenada.
+   - EVITA usar la palabra "paciente" como sustantivo por defecto en cada oración; varía cómo te refieres a la persona a lo largo del texto usando alternativas como: "la persona", "el usuario", "el señor"/"la señora" (si la edad lo sugiere), "el niño"/"la niña"/"el menor" (si aplica por edad), o simplemente el pronombre implícito sin repetir el sustantivo. No uses "paciente" más de una vez por fila.
    - Para la columna "Hallazgos en la Visita", varía el verbo y la construcción inicial usando opciones como: "Se identificó...", "Se detectó...", "Se constató...", "Se evidenció...", "Se observó que...", "La persona presenta...", "Durante la visita se encontró...", "Se evaluó la condición de...", entre otras equivalentes.
    - Para la parte de consejería/recomendación, varía el inicio usando opciones como: "Se brindó consejería sobre...", "Se orientó a la persona respecto a...", "Se recomendó...", "Se educó sobre...", "Se realizó consejería enfocada en...", "Se explicó la importancia de...", entre otras equivalentes.
    - Para la parte del ACUERDO específicamente, varía también la redacción usando opciones como: "Acuerdo: se compromete a...", "Como compromiso, la persona acordó...", "Se estableció el compromiso de...", "Acuerdo alcanzado: la persona se compromete a...", "Quedó como compromiso...", "La persona/el responsable acordó...", entre otras equivalentes. NUNCA uses la misma fórmula de acuerdo en dos pacientes seguidos.
@@ -1151,6 +1403,126 @@ function vaciarTodoHistorial() {
   if (confirm('⚠️ ¿Quieres eliminar TODO el historial guardado? Esta acción no se puede deshacer.')) {
     localStorage.removeItem('historial_registros_salud');
     cargarHistorialUI();
+  }
+}
+
+/* ===================== HISTORIAL DIARIO DE NOTAS RÁPIDAS (LocalStorage) =====================
+   Permite guardar una "foto" de las notas de campo (antes de generar el informe con IA),
+   para no perder el trabajo del día y poder recuperarlo o revisarlo más tarde. */
+
+function obtenerHistorialNotas() {
+  const data = localStorage.getItem('historial_notas_diarias');
+  return data ? JSON.parse(data) : [];
+}
+
+function leerFilasEntradaActuales() {
+  const filas = document.querySelectorAll('#tablaEntrada tbody tr');
+  return Array.from(filas).map(fila => {
+    const tas = fila.querySelectorAll('textarea');
+    return {
+      nombre: tas[0] ? tas[0].value.trim() : '',
+      edad: tas[1] ? tas[1].value.trim() : '',
+      notas: tas[2] ? tas[2].value.trim() : ''
+    };
+  }).filter(f => f.nombre || f.edad || f.notas);
+}
+
+function guardarNotasEnHistorial() {
+  const filas = leerFilasEntradaActuales();
+
+  if (filas.length === 0) {
+    alert('No hay notas escritas todavía para guardar en el historial.');
+    return;
+  }
+
+  const historial = obtenerHistorialNotas();
+  const fechaActual = new Date();
+  const fechaFormateada = fechaActual.toLocaleDateString('es-ES', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+
+  const nuevoItem = {
+    id: Date.now(),
+    fecha: fechaFormateada,
+    pacientesCount: filas.length,
+    filas: filas
+  };
+
+  historial.unshift(nuevoItem); // Agregar al inicio
+  localStorage.setItem('historial_notas_diarias', JSON.stringify(historial));
+
+  alert('¡Notas guardadas en tu historial diario local!');
+  cargarHistorialNotasUI();
+}
+
+let historialNotasAbierto = false;
+function toggleHistorialNotas() {
+  historialNotasAbierto = !historialNotasAbierto;
+  document.getElementById('listaHistorialNotas').style.display = historialNotasAbierto ? 'block' : 'none';
+  document.getElementById('flechaHistorialNotas').textContent = historialNotasAbierto ? '▲' : '▼';
+}
+
+function cargarHistorialNotasUI() {
+  const historial = obtenerHistorialNotas();
+  const contenedor = document.getElementById('contenidoHistorialNotas');
+
+  const contador = document.getElementById('contadorHistorialNotas');
+  if (contador) contador.textContent = historial.length;
+
+  if (historial.length === 0) {
+    contenedor.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No hay notas guardadas en el historial aún.</p>';
+    return;
+  }
+
+  let html = '';
+  historial.forEach(item => {
+    html += `
+      <div class="historial-item-notas">
+        <div class="historial-info">
+          <strong>📅 Notas del ${item.fecha}</strong>
+          <p>👥 ${item.pacientesCount} persona(s) anotada(s)</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-secondary-sm" onclick="cargarItemHistorialNotas(${item.id})">👁️ Ver / Cargar</button>
+          <button class="btn-danger-sm" onclick="eliminarItemHistorialNotas(${item.id})">🗑️ Borrar</button>
+        </div>
+      </div>
+    `;
+  });
+
+  contenedor.innerHTML = html;
+}
+
+function cargarItemHistorialNotas(id) {
+  const historial = obtenerHistorialNotas();
+  const item = historial.find(x => x.id === id);
+  if (!item) return;
+
+  if (!confirm('Esto reemplazará las notas actuales del formulario con las notas guardadas de esta fecha. ¿Deseas continuar?')) return;
+
+  const tbody = document.querySelector('#tablaEntrada tbody');
+  tbody.innerHTML = '';
+  item.filas.forEach(f => agregarFilaEntradaSilenciosa(f.nombre, f.edad, f.notas));
+  if (item.filas.length === 0) agregarFilaEntradaSilenciosa('', '', '');
+  document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
+  guardarBorradorEntrada();
+
+  document.querySelector('.card-notas').scrollIntoView({ behavior: 'smooth' });
+}
+
+function eliminarItemHistorialNotas(id) {
+  if (confirm('¿Estás seguro de eliminar estas notas del historial diario?')) {
+    let historial = obtenerHistorialNotas();
+    historial = historial.filter(x => x.id !== id);
+    localStorage.setItem('historial_notas_diarias', JSON.stringify(historial));
+    cargarHistorialNotasUI();
+  }
+}
+
+function vaciarHistorialNotas() {
+  if (confirm('⚠️ ¿Quieres eliminar TODO el historial de notas diarias? Esta acción no se puede deshacer.')) {
+    localStorage.removeItem('historial_notas_diarias');
+    cargarHistorialNotasUI();
   }
 }
 
