@@ -3,7 +3,7 @@
 // Network Only para las peticiones a la IA (nunca deben quedar cacheadas
 // datos de pacientes ni la respuesta con la API key).
 
-const CACHE_NAME = 'registros-salud-v3';
+const CACHE_NAME = 'registros-salud-v1';
 
 const ARCHIVOS_NUCLEO = [
   './',
