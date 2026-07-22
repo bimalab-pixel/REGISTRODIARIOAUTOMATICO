@@ -1169,12 +1169,17 @@ REGLAS DE FORMATO Y REDACCIÓN:
 3. VARIEDAD OBLIGATORIA EN LA REDACCIÓN (muy importante):
    - NUNCA repitas la misma frase inicial en varias filas, en NINGUNA de las tres partes de la columna de acciones (consejería, recomendación y acuerdo). Cada paciente debe leerse como una observación distinta escrita por una persona, no como una plantilla copiada y rellenada.
    - EVITA usar la palabra "paciente" como sustantivo por defecto en cada oración; varía cómo te refieres a la persona a lo largo del texto usando alternativas como: "la persona", "el usuario", "el señor"/"la señora" (si la edad lo sugiere), "el niño"/"la niña"/"el menor" (si aplica por edad), o simplemente el pronombre implícito sin repetir el sustantivo. No uses "paciente" más de una vez por fila.
-   - Para la columna "Hallazgos en la Visita", varía el verbo y la construcción inicial usando opciones como: "Se identificó...", "Se detectó...", "Se constató...", "Se evidenció...", "Se observó que...", "La persona presenta...", "Durante la visita se encontró...", "Se evaluó la condición de...", entre otras equivalentes.
-   - Para la parte de consejería/recomendación, varía el inicio usando opciones como: "Se brindó consejería sobre...", "Se orientó a la persona respecto a...", "Se recomendó...", "Se educó sobre...", "Se realizó consejería enfocada en...", "Se explicó la importancia de...", entre otras equivalentes.
+   - Para la columna "Hallazgos en la Visita", varía el verbo y la construcción inicial usando opciones como: "Se identificó...", "Se detectó...", "Se constató...", "Se evidenció...", "Se observó que...", "La persona presenta...", "Durante la visita se encontró...", "Se evaluó la condición de...", entre otras equivalentes. Igual que en la columna de acciones, evita que todas las filas empiecen con "Se"; intercala construcciones que inicien de otra forma (ej: "La persona presenta...", "Durante la visita se encontró...").
+   - Para la parte de consejería/recomendación, NO empieces siempre la celda con "Se..." (revisa que no todas las filas comiencen igual). Alterna entre construcciones con "Se" (ej: "Se brindó consejería sobre...", "Se orientó a la persona respecto a...") y construcciones que NO empiecen con "Se", como: "La persona recibió orientación sobre...", "Como parte de la atención se educó sobre..." (usando "Como" al inicio), "Durante la visita se recomendó..." (usando "Durante" al inicio), "Ante esta situación, se explicó...", "Fue orientado/a acerca de...", "La consejería brindada abordó...", entre otras equivalentes. NUNCA uses la frase "el equipo de salud" ni similares (como "el personal de salud"), ya que las visitas las realiza un solo promotor de salud, no un equipo. Procura que, de cada 3 o 4 filas, al menos una NO comience con la palabra "Se".
    - Para la parte del ACUERDO específicamente, varía también la redacción usando opciones como: "Acuerdo: se compromete a...", "Como compromiso, la persona acordó...", "Se estableció el compromiso de...", "Acuerdo alcanzado: la persona se compromete a...", "Quedó como compromiso...", "La persona/el responsable acordó...", entre otras equivalentes. NUNCA uses la misma fórmula de acuerdo en dos pacientes seguidos.
    - Adapta la redacción al caso específico de cada paciente (sus notas) en lugar de generalizar con una fórmula única.
 
 ${reglaDetalle}
+
+DATO CLÍNICO OBLIGATORIO (regla crítica, no negociable):
+   - CUALQUIER dato concreto que aparezca en la nota original —resultados de laboratorio o pruebas (ej: "131.25 mg/dL", "test de Sullivan"), cifras de signos vitales (ej: "140 mmHg"), fechas exactas, semanas de gestación, dosis, nombres de vacunas o medicamentos, lugares de referencia, etc.— DEBE aparecer reflejado en la columna correspondiente del informe (Hallazgos o Acciones, según corresponda), aunque la redacción se resuma o parafrasee.
+   - Está PROHIBIDO omitir o "perder" un dato numérico o clínico concreto de la nota original por resumir o embellecer la redacción. Si la nota menciona un resultado, una cifra o una fecha, esa información debe estar presente en el texto final, en algún punto de las dos columnas.
+   - Antes de redactar cada fila, revisa mentalmente la nota original dato por dato y verifica que ninguno se haya quedado fuera del texto generado.
 
 5. Procesa TODOS los pacientes listados sin omitir a ninguno.
 6. Devuelve ÚNICAMENTE la tabla TSV limpia (sin marcas markdown \`\`\`tsv ni introducciones).
@@ -1437,21 +1442,31 @@ function guardarNotasEnHistorial() {
 
   const historial = obtenerHistorialNotas();
   const fechaActual = new Date();
+  const diaKey = fechaActual.toDateString(); // Identifica el día calendario (para no duplicar mientras no termine el día)
   const fechaFormateada = fechaActual.toLocaleDateString('es-ES', {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  const nuevoItem = {
-    id: Date.now(),
-    fecha: fechaFormateada,
-    pacientesCount: filas.length,
-    filas: filas
-  };
+  // Si ya se guardó algo hoy, se ACTUALIZA esa misma entrada en vez de crear una nueva
+  const entradaDeHoy = historial.find(item => item.diaKey === diaKey);
 
-  historial.unshift(nuevoItem); // Agregar al inicio
+  if (entradaDeHoy) {
+    entradaDeHoy.filas = filas;
+    entradaDeHoy.pacientesCount = filas.length;
+    entradaDeHoy.fecha = fechaFormateada; // refleja la hora de la última actualización
+  } else {
+    historial.unshift({
+      id: Date.now(),
+      diaKey: diaKey,
+      fecha: fechaFormateada,
+      pacientesCount: filas.length,
+      filas: filas
+    });
+  }
+
   localStorage.setItem('historial_notas_diarias', JSON.stringify(historial));
 
-  alert('¡Notas guardadas en tu historial diario local!');
+  alert(entradaDeHoy ? '¡Notas de hoy actualizadas en el historial!' : '¡Notas guardadas en tu historial diario local!');
   cargarHistorialNotasUI();
 }
 
