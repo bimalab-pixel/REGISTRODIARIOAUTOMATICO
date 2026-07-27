@@ -746,8 +746,23 @@
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
       <label style="margin:0;">📝 Registro de Notas Rápidas de la Jornada:</label>
-      <button class="btn-danger-sm" onclick="limpiarNotasEntrada()">🧹 Limpiar Notas</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-danger-sm" id="btn-toggle-pegar-tsv" onclick="toggleImportarTSV()" style="background:#0d9488;">📋 Pegar tabla del Registro Diario</button>
+        <button class="btn-danger-sm" onclick="limpiarNotasEntrada()">🧹 Limpiar Notas</button>
+      </div>
     </div>
+
+    <div id="panel-importar-tsv" style="display:none; margin-bottom:12px; padding:12px; border:1px solid #99f6e4; background:#f0fdfa; border-radius:10px;">
+      <p style="font-size:12.5px; color:#0f766e; margin:0 0 8px;">
+        Pega aquí la tabla copiada con el botón "Copiar tabla" del Registro Diario (o del resultado ya generado en esta misma app). Se reconoce automáticamente el formato, con o sin encabezado.
+      </p>
+      <textarea id="textarea-importar-tsv" rows="4" style="width:100%; font-family:monospace; font-size:12.5px; padding:8px; border-radius:8px; border:1px solid #99f6e4;" placeholder="Pega aquí con Ctrl+V..."></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+        <button class="btn-add-row" style="flex:1; min-width:140px;" onclick="importarFilasDesdeTSV()">✅ Importar filas</button>
+        <button class="btn-danger-sm" onclick="toggleImportarTSV()">Cancelar</button>
+      </div>
+    </div>
+
     <div class="table-container">
       <table id="tablaEntrada">
         <thead>
@@ -925,6 +940,91 @@ function eliminarFilaEntrada(btn) {
   guardarBorradorEntrada();
 }
 
+/* ===================== IMPORTAR TABLA TSV PEGADA (desde el Registro Diario u otra fuente) ===================== */
+
+function toggleImportarTSV() {
+  const panel = document.getElementById('panel-importar-tsv');
+  const abrir = panel.style.display === 'none';
+  panel.style.display = abrir ? 'block' : 'none';
+  if (abrir) {
+    const ta = document.getElementById('textarea-importar-tsv');
+    ta.value = '';
+    ta.focus();
+  }
+}
+
+// Reconoce varios formatos de TSV pegado:
+// - 7 columnas: Fecha, Hora, No. Vivienda, Nombre, Edad, Hallazgos, Acciones Ejecutadas (export del Registro Diario)
+// - 4 columnas: Nombre, Edad, Hallazgos, Acciones (formato de salida de esta misma app)
+// - 2-3 columnas: Nombre, Edad, Notas (formato nativo de esta tabla de entrada)
+function _asrParsearTSVPegado(texto) {
+  const lineas = texto.split(/\r\n|\r|\n/).filter(l => l.trim() !== '');
+  if (!lineas.length) return [];
+
+  let inicio = 0;
+  const primeraCols = lineas[0].split('\t').map(c => c.trim().toLowerCase());
+  const pareceEncabezado = primeraCols.some(c => c.includes('nombre')) ||
+    primeraCols.some(c => c.includes('fecha')) ||
+    primeraCols.some(c => c.includes('hallazgo'));
+  if (pareceEncabezado) inicio = 1;
+
+  const filas = [];
+  for (let i = inicio; i < lineas.length; i++) {
+    const cols = lineas[i].split('\t');
+    if (cols.length < 2) continue;
+
+    let nombre = '', edad = '', notas = '';
+    if (cols.length >= 7) {
+      // Fecha, Hora, No. Vivienda, Nombre, Edad, Hallazgos, Acciones Ejecutadas
+      nombre = (cols[3] || '').trim();
+      edad = (cols[4] || '').trim();
+      const hallazgos = (cols[5] || '').trim();
+      const acciones = (cols[6] || '').trim();
+      notas = acciones ? `${hallazgos} (Nota adicional ya escrita sobre acciones/consejería a considerar: ${acciones})` : hallazgos;
+    } else if (cols.length === 4) {
+      // Nombre, Edad, Hallazgos, Acciones
+      nombre = (cols[0] || '').trim();
+      edad = (cols[1] || '').trim();
+      const hallazgos = (cols[2] || '').trim();
+      const acciones = (cols[3] || '').trim();
+      notas = acciones ? `${hallazgos} (Nota adicional ya escrita sobre acciones/consejería a considerar: ${acciones})` : hallazgos;
+    } else {
+      // Nombre, Edad, Notas
+      nombre = (cols[0] || '').trim();
+      edad = (cols[1] || '').trim();
+      notas = (cols[2] || '').trim();
+    }
+
+    if (nombre || notas) filas.push({ nombre, edad, notas });
+  }
+  return filas;
+}
+
+function importarFilasDesdeTSV() {
+  const texto = document.getElementById('textarea-importar-tsv').value;
+  if (!texto || !texto.trim()) { alert('Pega primero el contenido de la tabla.'); return; }
+
+  const filas = _asrParsearTSVPegado(texto);
+  if (!filas.length) {
+    alert('No se reconocieron filas válidas. Verifica que hayas copiado la tabla completa (con Nombre y Hallazgos/Notas).');
+    return;
+  }
+
+  const tbody = document.querySelector('#tablaEntrada tbody');
+  const filasActuales = Array.from(tbody.querySelectorAll('tr'));
+  const todasVacias = filasActuales.every(fila => {
+    const tas = fila.querySelectorAll('textarea');
+    return !tas[0].value.trim() && !tas[1].value.trim() && !tas[2].value.trim();
+  });
+  if (todasVacias) tbody.innerHTML = '';
+
+  filas.forEach(f => agregarFilaEntradaSilenciosa(f.nombre, f.edad, f.notas));
+  document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
+  guardarBorradorEntrada();
+  toggleImportarTSV();
+  alert(`✅ Se importaron ${filas.length} fila(s). Revisa las notas y presiona "✨ Generar Registro Oficial en Tabla" cuando estés listo.`);
+}
+
 /* ===================== AUTOGUARDADO DE BORRADOR (para no perder datos al cerrar) ===================== */
 
 let _timeoutBorradorEntrada = null;
@@ -1096,6 +1196,29 @@ function validarEstructuraTSV(tsvData) {
   return { valido: true };
 }
 
+const _asrAperturasHallazgos = [
+  'Se identificó', 'Se detectó', 'Se constató', 'Se evidenció',
+  'Se observó que', 'Durante la visita se encontró', 'La visita permitió constatar',
+  'Se evaluó la condición de la persona y se determinó'
+];
+const _asrAperturasAcciones = [
+  'La persona recibió orientación sobre', 'Como parte de la atención se educó sobre',
+  'Durante la visita se recomendó', 'Ante esta situación, se explicó',
+  'Fue orientado/a acerca de', 'La consejería brindada abordó',
+  'Se brindó consejería enfocada en', 'La atención incluyó orientación sobre'
+];
+
+// Extrae números (incluye cifras compuestas como 145/90, 37.5, semanas, dosis) para verificar que no se pierdan
+function _asrExtraerNumeros(texto) {
+  const m = (texto || '').match(/\d+(?:[.:\/-]\d+)*/g) || [];
+  const vistos = {};
+  const out = [];
+  for (let i = 0; i < m.length; i++) {
+    if (!vistos[m[i]]) { vistos[m[i]] = true; out.push(m[i]); }
+  }
+  return out;
+}
+
 async function generarInforme() {
   const apiKey = localStorage.getItem('groq_api_key');
   const modo = document.getElementById('nivelDetalle').value;
@@ -1109,6 +1232,7 @@ async function generarInforme() {
   const filasEntrada = document.querySelectorAll('#tablaEntrada tbody tr');
   let datosEntradaTexto = "";
   let tieneDatos = false;
+  const itemsEntrada = [];
 
   filasEntrada.forEach((fila, index) => {
     const textareas = fila.querySelectorAll('textarea');
@@ -1118,7 +1242,17 @@ async function generarInforme() {
 
     if (nombre || notas) {
       tieneDatos = true;
-      datosEntradaTexto += `${index + 1}. Nombre: ${nombre || 'No especificado'} | Edad: ${edad || 'No especificada'} | Notas: ${notas || 'Sin observaciones'}\n`;
+      const aperturaHallazgos = _asrAperturasHallazgos[itemsEntrada.length % _asrAperturasHallazgos.length];
+      const aperturaAcciones = _asrAperturasAcciones[itemsEntrada.length % _asrAperturasAcciones.length];
+      itemsEntrada.push({
+        pos: itemsEntrada.length + 1,
+        nombre: nombre || 'No especificado',
+        edad: edad || 'No especificada',
+        notas: notas || 'Sin observaciones',
+        numerosOriginales: _asrExtraerNumeros(notas),
+        aperturaHallazgos, aperturaAcciones
+      });
+      datosEntradaTexto += `${itemsEntrada.length}. Nombre: ${nombre || 'No especificado'} | Edad: ${edad || 'No especificada'} | Inicio obligatorio Hallazgos: "${aperturaHallazgos}" | Inicio obligatorio Acciones: "${aperturaAcciones}" | Notas: ${notas || 'Sin observaciones'}\n`;
     }
   });
 
@@ -1132,25 +1266,30 @@ async function generarInforme() {
 
   if (modo === "resumido") {
     reglaDetalle = `
-4. Estilo RESUMIDO Y DIRECTO:
-   - Mantén "Hallazgos" y "Acciones Ejecutadas" en oraciones muy cortas y directas (máximo 1 o 2 oraciones breves por columna).`;
+4. Estilo RESUMIDO Y DIRECTO (el más corto de los 3 niveles):
+   - "Hallazgos": UNA sola oración corta y directa (máximo ~15 palabras). Solo el dato principal, sin contexto adicional.
+   - "Acciones Ejecutadas": UNA sola oración corta (máximo ~15-18 palabras) que mencione la recomendación principal y el acuerdo, fusionados en una sola frase.
+   - No agregues explicaciones, contexto clínico ni antecedentes. Ve directo al punto.`;
     temp = 0.25;
   } else if (modo === "balanceado") {
     reglaDetalle = `
-4. Estilo BALANCEADO:
-   - Si la nota original es una idea básica o muy breve (ej: "con gripe", "citología atrasada", "faltista de control"), NO la traduzcas en una sola oración calcada; desarróllala un poco más añadiendo el contexto clínico o situacional relevante (por ejemplo: por qué es importante el caso, qué implica la condición, o qué se observó adicionalmente), en 2 oraciones cortas para "Hallazgos".
-   - Describe con claridad técnica el hallazgo y la acción realizada por columna, con un nivel de detalle intermedio: ni tan escueto como una lista de puntos, ni tan extenso como un párrafo largo.
-   - Incluye la consejería dada y el acuerdo alcanzado de forma equilibrada.`;
+4. Estilo BALANCEADO (equilibrio entre completo y conciso, NO tan extenso como el modo Detallado, pero SIN dejar ningún tema fuera):
+   - Cubre TODOS los temas o condiciones que mencione la nota de cada paciente, cada uno con su razonamiento (por qué es relevante o qué riesgo implica) y su acción/consejería correspondiente. No omitas un tema solo para acortar el texto.
+   - Como referencia de extensión: si la nota trae 1 solo tema, usa 2 oraciones en "Hallazgos" y 2 en "Acciones Ejecutadas". Si trae 2 o 3 temas, usa una oración compacta por tema en cada columna (puedes fusionar temas muy relacionados en una sola oración si tiene sentido clínico).
+   - No repitas ideas ni agregues relleno; sé directo pero completo. La meta es que se lea denso en información útil, ni telegráfico ni saturado de paja.`;
     temp = 0.35;
   } else if (modo === "detallado") {
     reglaDetalle = `
-4. Estilo EXTENSO Y DETALLADO:
-   - Amplía la descripción de los "Hallazgos" incluyendo la condición detectada, riesgos en la vivienda e impacto.
-   - En "Acciones Ejecutadas", detalla ampliamente la acción técnica, la educación brindada y el compromiso redactado como "Acuerdo: [detalle extenso del compromiso]".`;
-    temp = 0.45;
+4. Estilo EXTENSO Y DETALLADO (el más largo de los 3 niveles — debe ser notablemente más extenso que el modo Balanceado, al menos el doble de longitud):
+   - "Hallazgos": entre 4 y 6 oraciones. Debes incluir explícitamente, cuando la nota lo permita: (a) la condición o situación detectada, (b) el contexto o antecedente relevante, (c) posibles riesgos o complicaciones asociadas a esa condición, y (d) el impacto en la vivienda, la vida diaria o el entorno familiar si aplica.
+   - "Acciones Ejecutadas": entre 4 y 6 oraciones, desglosando POR SEPARADO: (1) la consejería educativa explicada con más detalle (qué se explicó y por qué es importante), (2) la acción técnica o clínica ejecutada, (3) la recomendación de seguimiento indicando un plazo o próxima fecha/control, y (4) el acuerdo redactado de forma extensa como "Acuerdo: [detalle amplio del compromiso]".
+   - Si notas que tu redacción quedó con una extensión parecida al modo Balanceado, amplíala aún más agregando contexto clínico, antecedentes y pasos de seguimiento explícitos hasta que la diferencia sea evidente.`;
+    temp = 0.5;
   }
 
-  const promptSystem = `
+
+  function _asrConstruirReglas(reglaDetalle) {
+    return `
 Eres un asistente experto en salud comunitaria para promotores de campo.
 Tu tarea es tomar la lista de pacientes proporcionada y estructurar un informe oficial en una tabla delimitada por tabulaciones (TSV) con 4 columnas exactas:
 
@@ -1166,27 +1305,45 @@ REGLAS DE FORMATO Y REDACCIÓN:
    - Utiliza redacción técnica formal para informes diarios de campo (pretérito perfecto impersonal).
    - La sección de acuerdos siempre debe comunicar claramente el compromiso establecido con la persona o su responsable.
 
-3. VARIEDAD OBLIGATORIA EN LA REDACCIÓN (muy importante):
-   - NUNCA repitas la misma frase inicial en varias filas, en NINGUNA de las tres partes de la columna de acciones (consejería, recomendación y acuerdo). Cada paciente debe leerse como una observación distinta escrita por una persona, no como una plantilla copiada y rellenada.
-   - EVITA usar la palabra "paciente" como sustantivo por defecto en cada oración; varía cómo te refieres a la persona a lo largo del texto usando alternativas como: "la persona", "el usuario", "el señor"/"la señora" (si la edad lo sugiere), "el niño"/"la niña"/"el menor" (si aplica por edad), o simplemente el pronombre implícito sin repetir el sustantivo. No uses "paciente" más de una vez por fila.
-   - Para la columna "Hallazgos en la Visita", varía el verbo y la construcción inicial usando opciones como: "Se identificó...", "Se detectó...", "Se constató...", "Se evidenció...", "Se observó que...", "La persona presenta...", "Durante la visita se encontró...", "Se evaluó la condición de...", entre otras equivalentes. Igual que en la columna de acciones, evita que todas las filas empiecen con "Se"; intercala construcciones que inicien de otra forma (ej: "La persona presenta...", "Durante la visita se encontró...").
-   - Para la parte de consejería/recomendación, NO empieces siempre la celda con "Se..." (revisa que no todas las filas comiencen igual). Alterna entre construcciones con "Se" (ej: "Se brindó consejería sobre...", "Se orientó a la persona respecto a...") y construcciones que NO empiecen con "Se", como: "La persona recibió orientación sobre...", "Como parte de la atención se educó sobre..." (usando "Como" al inicio), "Durante la visita se recomendó..." (usando "Durante" al inicio), "Ante esta situación, se explicó...", "Fue orientado/a acerca de...", "La consejería brindada abordó...", entre otras equivalentes. NUNCA uses la frase "el equipo de salud" ni similares (como "el personal de salud"), ya que las visitas las realiza un solo promotor de salud, no un equipo. Procura que, de cada 3 o 4 filas, al menos una NO comience con la palabra "Se".
-   - Para la parte del ACUERDO específicamente, varía también la redacción usando opciones como: "Acuerdo: se compromete a...", "Como compromiso, la persona acordó...", "Se estableció el compromiso de...", "Acuerdo alcanzado: la persona se compromete a...", "Quedó como compromiso...", "La persona/el responsable acordó...", entre otras equivalentes. NUNCA uses la misma fórmula de acuerdo en dos pacientes seguidos.
+3. INICIO FIJO POR PACIENTE (no negociable, evita que varias filas empiecen igual): cada paciente en la lista tiene asignado su propio inicio obligatorio para "Hallazgos" y para "Acciones" (ver la lista de pacientes más abajo). Úsalo literalmente al comenzar esa columna para ese paciente; distintos pacientes ya tienen distintos inicios asignados, así que el resultado tendrá variedad automáticamente sin que tengas que decidirla tú.
+3b. EVITA LA MULETILLA "que la persona se encuentra en..." (regla crítica): no sigas el inicio asignado con esa misma frase en cada fila. En construcciones con "Se" (Se identificó, Se detectó, Se constató, etc.) el sujeto ya queda implícito gramaticalmente, así que casi siempre puedes ir directo al hallazgo sin nombrar al paciente (ej: "Se identificó un embarazo de 32 semanas..." en vez de "Se identificó que la persona se encuentra en estado de embarazo de 32 semanas..."). Usa una referencia explícita a la persona (la persona/la usuaria/el señor/la señora/el niño/la niña) como máximo en UNA de las dos columnas de esa fila, no en ambas.
+   - EVITA usar la palabra "paciente" como sustantivo por defecto en cada oración; varía cómo te refieres a la persona a lo largo del texto usando alternativas como: "la persona", "el usuario", "el señor"/"la señora" (si la edad lo sugiere), "el niño"/"la niña"/"el menor" (si aplica por edad). No uses "paciente" más de una vez por fila.
+   - Para el ACUERDO, varía la redacción usando opciones como: "Acuerdo: se compromete a...", "Como compromiso, la persona acordó...", "Se estableció el compromiso de...", "Acuerdo alcanzado: la persona se compromete a...", "Quedó como compromiso...", "La persona/el responsable acordó...", entre otras equivalentes. NUNCA uses la misma fórmula de acuerdo en dos pacientes seguidos, y NUNCA uses "el equipo de salud" ni "el personal de salud" (las visitas las realiza un solo promotor, no un equipo).
    - Adapta la redacción al caso específico de cada paciente (sus notas) en lugar de generalizar con una fórmula única.
 
 ${reglaDetalle}
+
+RAZONAMIENTO LIMITADO A LOS HALLAZGOS (regla crítica, no negociable):
+   - La consejería, las "Acciones Ejecutadas" y el acuerdo de CADA paciente DEBEN derivarse únicamente de lo que está explícitamente mencionado en sus propias notas. NO inventes diagnósticos, condiciones, antecedentes, exámenes ni intervenciones que el promotor no haya anotado para ese paciente.
+   - SÍ está permitido el razonamiento clínico lógico y directo sobre lo que fue mencionado (ej: si la nota dice "con gripe", es válido recomendar reposo, hidratación y observación de signos de alarma, porque es manejo estándar de esa condición ya mencionada).
+   - NO está permitido extender el caso a temas no relacionados con la nota de ese paciente (ej: no menciones planificación familiar, vacunas, tuberculosis u otra condición si su nota no la trata; no inventes un medicamento, dosis o procedimiento específico que el promotor no haya escrito).
+   - Si la nota de un paciente es muy escueta, la consejería debe seguir siendo genérica y relacionada directamente a lo mencionado, sin agregar detalles clínicos inventados solo para "rellenar" el texto.
+
+IDENTIFICACIÓN DE RIESGOS (regla importante):
+   - Cuando el hallazgo lo permita, agrega el riesgo o posible complicación clínica directa asociada a lo encontrado (ej: hipertensión no controlada → riesgo de complicaciones cardiovasculares; diarrea con deshidratación en niño pequeño → riesgo de deshidratación severa; embarazo con hta → riesgo de preeclampsia; alto riesgo reproductivo → riesgo de complicaciones en el embarazo).
+   - Este riesgo debe basarse SOLO en lo mencionado en la nota de ese paciente, sin inventar condiciones nuevas, y debe reflejarse en "Hallazgos" o como justificación de la acción/consejería en "Acciones Ejecutadas".
+
+CONTEXTO SIN DESVIARSE (regla importante):
+   - Puedes agregar contexto clínico breve que ayude a entender la relevancia del hallazgo (qué implica, por qué se actúa así), pero SIN salirte del tema principal de la nota de ese paciente ni mencionar condiciones, antecedentes o recomendaciones que no estén relacionadas con lo que el promotor anotó.
 
 DATO CLÍNICO OBLIGATORIO (regla crítica, no negociable):
    - CUALQUIER dato concreto que aparezca en la nota original —resultados de laboratorio o pruebas (ej: "131.25 mg/dL", "test de Sullivan"), cifras de signos vitales (ej: "140 mmHg"), fechas exactas, semanas de gestación, dosis, nombres de vacunas o medicamentos, lugares de referencia, etc.— DEBE aparecer reflejado en la columna correspondiente del informe (Hallazgos o Acciones, según corresponda), aunque la redacción se resuma o parafrasee.
    - Está PROHIBIDO omitir o "perder" un dato numérico o clínico concreto de la nota original por resumir o embellecer la redacción. Si la nota menciona un resultado, una cifra o una fecha, esa información debe estar presente en el texto final, en algún punto de las dos columnas.
    - Antes de redactar cada fila, revisa mentalmente la nota original dato por dato y verifica que ninguno se haya quedado fuera del texto generado.
 
+COBERTURA COMPLETA DE TODOS LOS TEMAS MENCIONADOS (regla crítica, no negociable):
+   - Si la nota de un paciente menciona MÁS DE UN hallazgo, condición o tema independiente (ej: "depresión y citología atrasada", "hipertensión y control de niño sano"), la respuesta DEBE abordar TODOS y cada uno de esos temas, tanto en "Hallazgos en la Visita" como en "Acciones Ejecutadas". Está PROHIBIDO responder solo al primer tema y omitir el segundo (o el tercero).
+   - Cada tema debe tener: (a) su propio razonamiento o riesgo en "Hallazgos", y (b) su propia acción/consejería en "Acciones Ejecutadas". Ningún tema puede quedar solo mencionado sin su acción correspondiente.
+   - Antes de redactar, cuenta mentalmente cuántos temas/condiciones distintos hay en la nota de ese paciente. La celda de "Hallazgos" debe reflejar cada uno, y la celda de "Acciones Ejecutadas" debe incluir consejería/acción/acuerdo específico para CADA tema.
+   - Esta regla aplica en los 3 niveles de detalle: incluso en modo Resumido, si hay 2 temas, la oración corta debe mencionar ambos aunque sea de forma breve (ej: "Consejería breve sobre reposo por gripe y orientación para retomar la citología pendiente").
+
 5. Procesa TODOS los pacientes listados sin omitir a ninguno.
 6. Devuelve ÚNICAMENTE la tabla TSV limpia (sin marcas markdown \`\`\`tsv ni introducciones).
 
-Pacientes ingresados por el usuario:
-${datosEntradaTexto}
-  `;
+`;
+  }
+
+  const promptSystem = _asrConstruirReglas(reglaDetalle) + `\n\nPacientes ingresados por el usuario:\n${datosEntradaTexto}\n`;
 
   const outputContainer = document.getElementById('resultContainer');
   const tableContainer = document.getElementById('tableContainer');
@@ -1194,57 +1351,121 @@ ${datosEntradaTexto}
   tableContainer.innerHTML = '<div class="loading-text">⏳ Procesando los registros con Inteligencia Artificial... Por favor espera unos segundos.</div>';
   outputContainer.style.display = 'block';
 
+  async function _asrLlamarIAGroq(prompt, temperatura) {
+    try {
+      const response = await llamarIAConReintento('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: temperatura
+        })
+      });
+
+      let data = null;
+      try { data = await response.json(); } catch (e) { /* respuesta sin JSON válido */ }
+
+      if (!response.ok) {
+        const mensajeError = (data && data.error && data.error.message) ? data.error.message : `Error del servidor (código ${response.status}).`;
+        let sugerencia = '';
+        if (response.status === 401) sugerencia = ' Verifica que tu API Key sea correcta en el menú de ajustes ⚙️.';
+        else if (response.status === 429) sugerencia = ' Alcanzaste el límite gratuito de solicitudes de Groq por ahora. Espera unos minutos e inténtalo de nuevo.';
+        else if (response.status >= 500) sugerencia = ' El servicio de Groq podría estar caído temporalmente. Intenta de nuevo en unos momentos.';
+        return { ok: false, fatal: response.status === 401, mensaje: `${mensajeError}${sugerencia}` };
+      }
+
+      if (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+        let resultado = data.choices[0].message.content;
+        resultado = resultado.replace(/```tsv/g, '').replace(/```/g, '').trim();
+        return { ok: true, contenido: resultado };
+      }
+      return { ok: false, mensaje: 'La IA no devolvió contenido válido.' };
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        return { ok: false, mensaje: 'La conexión tardó demasiado (posible señal débil).' };
+      }
+      return { ok: false, mensaje: 'Error de conexión con el servicio de IA.' };
+    }
+  }
+
   try {
-    const response = await llamarIAConReintento('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: promptSystem }],
-        temperature: temp
-      })
-    });
+    const primerIntento = await _asrLlamarIAGroq(promptSystem, temp);
 
-    let data = null;
-    try { data = await response.json(); } catch (e) { /* respuesta sin JSON válido */ }
-
-    if (!response.ok) {
-      const mensajeError = (data && data.error && data.error.message) ? data.error.message : `Error del servidor (código ${response.status}).`;
-      let sugerencia = '';
-      if (response.status === 401) sugerencia = ' Verifica que tu API Key sea correcta en el menú de ajustes ⚙️.';
-      else if (response.status === 429) sugerencia = ' Alcanzaste el límite gratuito de solicitudes de Groq por ahora. Espera unos minutos e inténtalo de nuevo.';
-      else if (response.status >= 500) sugerencia = ' El servicio de Groq podría estar caído temporalmente. Intenta de nuevo en unos momentos.';
-      tableContainer.innerHTML = `<div class="loading-text" style="color:red;">❌ ${mensajeError}${sugerencia}</div>`;
+    if (!primerIntento.ok) {
+      tableContainer.innerHTML = `<div class="loading-text" style="color:red;">❌ ${primerIntento.mensaje}</div>`;
       return;
     }
 
-    if (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-      let resultado = data.choices[0].message.content;
-      resultado = resultado.replace(/```tsv/g, '').replace(/```/g, '').trim();
-
-      const validacion = validarEstructuraTSV(resultado);
-      if (!validacion.valido) {
-        tableContainer.innerHTML = `<div class="loading-text" style="color:red;">⚠️ La IA devolvió una tabla con formato inesperado (${validacion.motivo}). Presiona "✨ Generar" de nuevo para reintentar.</div>`;
-        return;
-      }
-
-      ultimoTSVGenerado = resultado; // Guardar variable en memoria
-      renderizarTablaResultado(resultado);
-      localStorage.setItem('borrador_resultado_registros', resultado); // Autoguardar borrador
-      mostrarAvisoBorrador();
-    } else {
-      tableContainer.innerHTML = '<div class="loading-text" style="color:red;">❌ La IA no devolvió contenido válido. Intenta generar de nuevo.</div>';
+    const validacion = validarEstructuraTSV(primerIntento.contenido);
+    if (!validacion.valido) {
+      tableContainer.innerHTML = `<div class="loading-text" style="color:red;">⚠️ La IA devolvió una tabla con formato inesperado (${validacion.motivo}). Presiona "✨ Generar" de nuevo para reintentar.</div>`;
+      return;
     }
+
+    const lineasResultado = primerIntento.contenido.split('\n').filter(l => l.trim() !== '');
+    const encabezado = lineasResultado[0];
+    let filasResultado = lineasResultado.slice(1).map(l => l.split('\t'));
+
+    let avisoDesajuste = '';
+    if (filasResultado.length === itemsEntrada.length) {
+      // Verifica que ninguna cifra exacta de la nota original se haya perdido, por paciente
+      const faltantesPorFila = [];
+      filasResultado.forEach((cols, i) => {
+        const combinado = `${cols[2] || ''} ${cols[3] || ''}`;
+        const faltan = itemsEntrada[i].numerosOriginales.filter(n => combinado.indexOf(n) === -1);
+        if (faltan.length) faltantesPorFila.push({ i, faltan });
+      });
+
+      if (faltantesPorFila.length) {
+        const itemsReintento = faltantesPorFila.map(f => ({ ...itemsEntrada[f.i], pos: 1, refuerzo: f.faltan }));
+        // Reindexar posiciones 1..N solo dentro del sub-lote de reintento
+        itemsReintento.forEach((it, idx) => { it.pos = idx + 1; });
+        const datosReintentoTexto = itemsReintento.map(it => {
+          const ref = ` [DEBES incluir textualmente estas cifras que faltaron antes: ${it.refuerzo.join(', ')}]`;
+          return `${it.pos}. Nombre: ${it.nombre} | Edad: ${it.edad} | Inicio obligatorio Hallazgos: "${it.aperturaHallazgos}" | Inicio obligatorio Acciones: "${it.aperturaAcciones}" | Notas: ${it.notas}${ref}`;
+        }).join('\n');
+        const promptReintento = _asrConstruirReglas(reglaDetalle) + `\n\nPacientes ingresados por el usuario:\n${datosReintentoTexto}\n`;
+
+        const reintento = await _asrLlamarIAGroq(promptReintento, temp);
+        if (reintento.ok) {
+          const validacionReintento = validarEstructuraTSV(reintento.contenido);
+          if (validacionReintento.valido) {
+            const lineasReintento = reintento.contenido.split('\n').filter(l => l.trim() !== '');
+            const filasReintento = lineasReintento.slice(1).map(l => l.split('\t'));
+            faltantesPorFila.forEach((f, idx) => {
+              if (filasReintento[idx]) filasResultado[f.i] = filasReintento[idx];
+            });
+          }
+        }
+
+        // Verificación final: si a pesar del reintento sigue faltando algo, se deja visible en la fila (no se pierde silenciosamente)
+        let siguenFaltando = 0;
+        filasResultado.forEach((cols, i) => {
+          const combinado = `${cols[2] || ''} ${cols[3] || ''}`;
+          const faltan = itemsEntrada[i].numerosOriginales.filter(n => combinado.indexOf(n) === -1);
+          if (faltan.length) {
+            siguenFaltando++;
+            cols[3] = `${cols[3] || ''} ⚠️ Verificar manualmente estos datos de la nota original: ${faltan.join(', ')}`;
+          }
+        });
+        if (siguenFaltando) avisoDesajuste = `\n\n⚠️ ${siguenFaltando} fila(s) quedaron marcadas para revisión manual (la IA no logró incluir alguna cifra exacta).`;
+      }
+    }
+
+    const resultado = [encabezado, ...filasResultado.map(cols => cols.join('\t'))].join('\n');
+
+    ultimoTSVGenerado = resultado; // Guardar variable en memoria
+    renderizarTablaResultado(resultado);
+    localStorage.setItem('borrador_resultado_registros', resultado); // Autoguardar borrador
+    mostrarAvisoBorrador();
+    if (avisoDesajuste) alert('Registro generado.' + avisoDesajuste);
   } catch (error) {
     console.error(error);
-    if (error.name === 'AbortError') {
-      tableContainer.innerHTML = '<div class="loading-text" style="color:red;">❌ La conexión tardó demasiado (posible señal débil) y se reintentó sin éxito. Verifica tu internet e inténtalo de nuevo.</div>';
-    } else {
-      tableContainer.innerHTML = '<div class="loading-text" style="color:red;">❌ Error de conexión con el servicio de IA. Verifica tu internet e inténtalo de nuevo.</div>';
-    }
+    tableContainer.innerHTML = '<div class="loading-text" style="color:red;">❌ Error inesperado al procesar la respuesta de la IA. Intenta generar de nuevo.</div>';
   }
 }
 
