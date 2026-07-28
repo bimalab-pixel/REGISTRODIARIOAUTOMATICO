@@ -854,14 +854,27 @@
 <!-- MODAL AJUSTES API KEY -->
 <div class="modal" id="configModal">
   <div class="modal-content">
-    <h3>⚙️ Configuración de Clave API (Groq)</h3>
-    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-      Ingresa tu clave API. Esta se guardará exclusivamente en el <code>localStorage</code> de este dispositivo.
+    <h3>⚙️ Configuración de Inteligencia Artificial</h3>
+    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+      Elige el proveedor de IA gratuito que quieres usar. Cada clave se guarda por separado, exclusivamente en el <code>localStorage</code> de este dispositivo — puedes cambiar de proveedor cuando quieras sin perder las claves anteriores.
     </p>
-    <input type="text" id="modalApiKey" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:6px; font-size:13px;" placeholder="Pega tu clave gsk_... aquí">
-    <div style="display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end;">
+
+    <label style="margin-bottom:6px;">Proveedor de IA</label>
+    <select id="modalProveedor" onchange="actualizarCamposProveedor()" style="width:100%; margin-bottom:14px; color:var(--text-main); background:white; box-shadow:none; border:1px solid var(--border-color); padding:10px 12px; font-weight:500;"></select>
+
+    <label style="margin-bottom:6px;">Clave API</label>
+    <input type="text" id="modalApiKey" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:6px; font-size:13px;" placeholder="Pega tu clave aquí">
+    <a id="modalKeyHelp" href="#" target="_blank" rel="noopener" style="display:inline-block; margin-top:6px; font-size:12px; color:var(--primary); text-decoration:none;">Obtener clave gratis →</a>
+
+    <div style="margin-top:14px;">
+      <label style="margin-bottom:6px;">Modelo</label>
+      <select id="modalModelo" onchange="onModalModeloChange()" style="width:100%; color:var(--text-main); background:white; box-shadow:none; border:1px solid var(--border-color); padding:10px 12px; font-weight:500;"></select>
+      <input type="text" id="modalModeloCustom" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--border-color); border-radius:6px; font-size:13px; display:none;" placeholder="Escribe el ID exacto del modelo">
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end;">
       <button onclick="cerrarModal()" style="background:#e2e8f0; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Cancelar</button>
-      <button onclick="guardarModalKey()" style="background:var(--primary); color:white; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Guardar en LocalStorage</button>
+      <button onclick="guardarModalKey()" style="background:var(--primary); color:white; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Guardar y usar este proveedor</button>
     </div>
   </div>
 </div>
@@ -869,8 +882,57 @@
 <script>
 let ultimoTSVGenerado = ""; // Almacena temporalmente la última tabla procesada
 
+/* ===================== CONFIGURACIÓN DE PROVEEDORES DE IA (GRATIS) =====================
+   Cada proveedor guarda su propia clave y modelo en localStorage, bajo llaves distintas,
+   así el usuario puede cambiar de proveedor sin perder las claves ya ingresadas. */
+const ASR_PROVEEDORES = {
+  groq: {
+    nombre: 'Groq',
+    keyStorage: 'groq_api_key', // se mantiene el mismo nombre que ya usaban versiones anteriores de esta app
+    modeloStorage: 'asr_modelo_groq',
+    modeloDefault: 'llama-3.3-70b-versatile',
+    modelos: [
+      { id: 'llama-3.3-70b-versatile', nombre: 'Llama 3.3 70B Versatile (recomendado)' },
+      { id: 'llama-3.1-8b-instant', nombre: 'Llama 3.1 8B Instant (más rápido)' }
+    ],
+    keyPlaceholder: 'Pega tu clave gsk_... aquí',
+    keyHelpUrl: 'https://console.groq.com/keys'
+  },
+  gemini: {
+    nombre: 'Google Gemini',
+    keyStorage: 'gemini_api_key',
+    modeloStorage: 'asr_modelo_gemini',
+    modeloDefault: 'gemini-3.5-flash',
+    modelos: [
+      { id: 'gemini-3.5-flash', nombre: 'Gemini 3.5 Flash (recomendado)' },
+      { id: 'gemini-3.1-flash-lite', nombre: 'Gemini 3.1 Flash Lite (más económico/rápido)' },
+      { id: 'gemini-2.5-flash-lite', nombre: 'Gemini 2.5 Flash Lite (alternativa)' }
+    ],
+    keyPlaceholder: 'Pega tu clave AIza... aquí',
+    keyHelpUrl: 'https://aistudio.google.com/apikey'
+  },
+  openrouter: {
+    nombre: 'OpenRouter (modelos gratis)',
+    keyStorage: 'openrouter_api_key',
+    modeloStorage: 'asr_modelo_openrouter',
+    modeloDefault: 'meta-llama/llama-3.3-70b-instruct:free',
+    modelos: [
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', nombre: 'Llama 3.3 70B (free)' },
+      { id: 'deepseek/deepseek-chat-v3-0324:free', nombre: 'DeepSeek V3 (free)' },
+      { id: 'google/gemini-2.0-flash-exp:free', nombre: 'Gemini 2.0 Flash Exp (free)' }
+    ],
+    keyPlaceholder: 'Pega tu clave sk-or-... aquí',
+    keyHelpUrl: 'https://openrouter.ai/keys'
+  }
+};
+
+function asrProveedorActual() {
+  return localStorage.getItem('asr_proveedor_ia') || 'groq';
+}
+
 window.onload = function() {
-  const claveGuardada = localStorage.getItem('groq_api_key');
+  const proveedorActivo = ASR_PROVEEDORES[asrProveedorActual()];
+  const claveGuardada = localStorage.getItem(proveedorActivo.keyStorage);
   if (!claveGuardada) {
     abrirModal();
   }
@@ -887,7 +949,11 @@ function autoAjustarTexto(elemento) {
 }
 
 function abrirModal() {
-  document.getElementById('modalApiKey').value = localStorage.getItem('groq_api_key') || "";
+  const selectProveedor = document.getElementById('modalProveedor');
+  selectProveedor.innerHTML = Object.keys(ASR_PROVEEDORES)
+    .map(id => `<option value="${id}">${ASR_PROVEEDORES[id].nombre}</option>`).join('');
+  selectProveedor.value = asrProveedorActual();
+  actualizarCamposProveedor();
   document.getElementById('configModal').style.display = 'flex';
 }
 
@@ -895,15 +961,68 @@ function cerrarModal() {
   document.getElementById('configModal').style.display = 'none';
 }
 
-function guardarModalKey() {
-  const nuevaClave = document.getElementById('modalApiKey').value.trim();
-  if (nuevaClave) {
-    localStorage.setItem('groq_api_key', nuevaClave);
-    alert('¡Clave API guardada!');
-    cerrarModal();
+// Se ejecuta al abrir el modal y cada vez que el usuario cambia de proveedor en el selector:
+// carga la clave y el modelo YA guardados para ese proveedor (si los hay), sin perder los de los demás.
+function actualizarCamposProveedor() {
+  const provId = document.getElementById('modalProveedor').value;
+  const prov = ASR_PROVEEDORES[provId];
+
+  const campoClave = document.getElementById('modalApiKey');
+  campoClave.placeholder = prov.keyPlaceholder;
+  campoClave.value = localStorage.getItem(prov.keyStorage) || '';
+
+  const linkAyuda = document.getElementById('modalKeyHelp');
+  linkAyuda.href = prov.keyHelpUrl;
+  linkAyuda.textContent = `Obtener clave gratis de ${prov.nombre} →`;
+
+  const selectModelo = document.getElementById('modalModelo');
+  selectModelo.innerHTML = prov.modelos.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('')
+    + '<option value="__custom__">✏️ Otro (escribir manualmente)</option>';
+
+  const modeloGuardado = localStorage.getItem(prov.modeloStorage) || prov.modeloDefault;
+  const coincideConListado = prov.modelos.some(m => m.id === modeloGuardado);
+  const campoCustom = document.getElementById('modalModeloCustom');
+  if (coincideConListado) {
+    selectModelo.value = modeloGuardado;
+    campoCustom.style.display = 'none';
+    campoCustom.value = '';
   } else {
-    alert('Ingresa una clave válida.');
+    selectModelo.value = '__custom__';
+    campoCustom.style.display = 'block';
+    campoCustom.value = modeloGuardado;
   }
+}
+
+function onModalModeloChange() {
+  const esCustom = document.getElementById('modalModelo').value === '__custom__';
+  document.getElementById('modalModeloCustom').style.display = esCustom ? 'block' : 'none';
+}
+
+function guardarModalKey() {
+  const provId = document.getElementById('modalProveedor').value;
+  const prov = ASR_PROVEEDORES[provId];
+  const nuevaClave = document.getElementById('modalApiKey').value.trim();
+
+  if (!nuevaClave) {
+    alert('Ingresa una clave válida.');
+    return;
+  }
+
+  let modeloElegido = document.getElementById('modalModelo').value;
+  if (modeloElegido === '__custom__') {
+    modeloElegido = document.getElementById('modalModeloCustom').value.trim();
+    if (!modeloElegido) {
+      alert('Escribe el ID exacto del modelo que quieres usar.');
+      return;
+    }
+  }
+
+  localStorage.setItem(prov.keyStorage, nuevaClave);
+  localStorage.setItem(prov.modeloStorage, modeloElegido);
+  localStorage.setItem('asr_proveedor_ia', provId);
+
+  alert(`¡Clave de ${prov.nombre} guardada! Ahora se usará este proveedor para generar los informes.`);
+  cerrarModal();
 }
 
 function escapeHtml(str) {
@@ -1220,11 +1339,14 @@ function _asrExtraerNumeros(texto) {
 }
 
 async function generarInforme() {
-  const apiKey = localStorage.getItem('groq_api_key');
+  const proveedorId = asrProveedorActual();
+  const proveedor = ASR_PROVEEDORES[proveedorId];
+  const apiKey = localStorage.getItem(proveedor.keyStorage);
+  const modeloIA = localStorage.getItem(proveedor.modeloStorage) || proveedor.modeloDefault;
   const modo = document.getElementById('nivelDetalle').value;
 
   if (!apiKey) {
-    alert('Configura tu clave API desde el ícono (⚙️).');
+    alert(`Configura tu clave API de ${proveedor.nombre} desde el ícono (⚙️).`);
     abrirModal();
     return;
   }
@@ -1351,36 +1473,74 @@ COBERTURA COMPLETA DE TODOS LOS TEMAS MENCIONADOS (regla crítica, no negociable
   tableContainer.innerHTML = '<div class="loading-text">⏳ Procesando los registros con Inteligencia Artificial... Por favor espera unos segundos.</div>';
   outputContainer.style.display = 'block';
 
-  async function _asrLlamarIAGroq(prompt, temperatura) {
-    try {
-      const response = await llamarIAConReintento('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+  // Arma la URL, cabeceras y cuerpo de la petición según el proveedor de IA elegido.
+  // Groq y OpenRouter usan el mismo formato "estilo OpenAI" (chat/completions);
+  // Gemini usa su propio formato (contents/parts) y pasa la clave por la URL.
+  function _asrConstruirPeticion(prov, modelo, prompt, temperatura) {
+    if (prov === 'groq' || prov === 'openrouter') {
+      const url = prov === 'groq'
+        ? 'https://api.groq.com/openai/v1/chat/completions'
+        : 'https://openrouter.ai/api/v1/chat/completions';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      };
+      if (prov === 'openrouter') {
+        // Recomendado por OpenRouter para peticiones hechas desde el navegador
+        headers['HTTP-Referer'] = window.location.origin || 'https://localhost';
+        headers['X-Title'] = 'Asistente de Registros Diarios';
+      }
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: prompt }], temperature: temperatura })
         },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: temperatura
-        })
-      });
+        extraerTexto: (data) => data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
+      };
+    }
+
+    if (prov === 'gemini') {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      return {
+        url,
+        options: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: temperatura }
+          })
+        },
+        extraerTexto: (data) => data && data.candidates && data.candidates[0] && data.candidates[0].content
+          && data.candidates[0].content.parts
+          && data.candidates[0].content.parts.map(p => p.text || '').join('')
+      };
+    }
+  }
+
+  async function _asrLlamarIA(prompt, temperatura) {
+    try {
+      const peticion = _asrConstruirPeticion(proveedorId, modeloIA, prompt, temperatura);
+      const response = await llamarIAConReintento(peticion.url, peticion.options);
 
       let data = null;
       try { data = await response.json(); } catch (e) { /* respuesta sin JSON válido */ }
 
       if (!response.ok) {
-        const mensajeError = (data && data.error && data.error.message) ? data.error.message : `Error del servidor (código ${response.status}).`;
+        const mensajeError = (data && data.error && (data.error.message || (typeof data.error === 'string' ? data.error : JSON.stringify(data.error))))
+          ? (data.error.message || data.error) : `Error del servidor (código ${response.status}).`;
         let sugerencia = '';
-        if (response.status === 401) sugerencia = ' Verifica que tu API Key sea correcta en el menú de ajustes ⚙️.';
-        else if (response.status === 429) sugerencia = ' Alcanzaste el límite gratuito de solicitudes de Groq por ahora. Espera unos minutos e inténtalo de nuevo.';
-        else if (response.status >= 500) sugerencia = ' El servicio de Groq podría estar caído temporalmente. Intenta de nuevo en unos momentos.';
-        return { ok: false, fatal: response.status === 401, mensaje: `${mensajeError}${sugerencia}` };
+        if (response.status === 401 || response.status === 403) sugerencia = ` Verifica que tu API Key de ${proveedor.nombre} sea correcta en el menú de ajustes ⚙️.`;
+        else if (response.status === 429) sugerencia = ` Alcanzaste el límite gratuito de solicitudes de ${proveedor.nombre} por ahora. Espera unos minutos e inténtalo de nuevo.`;
+        else if (response.status >= 500) sugerencia = ` El servicio de ${proveedor.nombre} podría estar caído temporalmente. Intenta de nuevo en unos momentos.`;
+        return { ok: false, fatal: (response.status === 401 || response.status === 403), mensaje: `${mensajeError}${sugerencia}` };
       }
 
-      if (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-        let resultado = data.choices[0].message.content;
-        resultado = resultado.replace(/```tsv/g, '').replace(/```/g, '').trim();
+      const resultadoTexto = peticion.extraerTexto(data);
+      if (resultadoTexto) {
+        let resultado = resultadoTexto.replace(/```tsv/g, '').replace(/```/g, '').trim();
         return { ok: true, contenido: resultado };
       }
       return { ok: false, mensaje: 'La IA no devolvió contenido válido.' };
@@ -1393,7 +1553,7 @@ COBERTURA COMPLETA DE TODOS LOS TEMAS MENCIONADOS (regla crítica, no negociable
   }
 
   try {
-    const primerIntento = await _asrLlamarIAGroq(promptSystem, temp);
+    const primerIntento = await _asrLlamarIA(promptSystem, temp);
 
     if (!primerIntento.ok) {
       tableContainer.innerHTML = `<div class="loading-text" style="color:red;">❌ ${primerIntento.mensaje}</div>`;
@@ -1430,7 +1590,7 @@ COBERTURA COMPLETA DE TODOS LOS TEMAS MENCIONADOS (regla crítica, no negociable
         }).join('\n');
         const promptReintento = _asrConstruirReglas(reglaDetalle) + `\n\nPacientes ingresados por el usuario:\n${datosReintentoTexto}\n`;
 
-        const reintento = await _asrLlamarIAGroq(promptReintento, temp);
+        const reintento = await _asrLlamarIA(promptReintento, temp);
         if (reintento.ok) {
           const validacionReintento = validarEstructuraTSV(reintento.contenido);
           if (validacionReintento.valido) {
