@@ -2396,6 +2396,14 @@ function _riesgoDatosGrafica(edadTexto, notaTexto) {
 
 // Dibuja la curva OMS (líneas -3 a +3 DE) para el indicador dado y marca el punto de la persona.
 // Devuelve { unidad, clasificacion } para mostrar debajo del gráfico, o null si no hay tabla.
+// Colores por categoría clínica (mismas palabras que usa _riesgoClasificar / CORTES_*)
+function _riesgoColorCategoria(texto) {
+  if (/severo|severa/i.test(texto)) return { fill: 'rgba(220,38,38,0.16)', linea: '#dc2626' };
+  if (/obesidad/i.test(texto))      return { fill: 'rgba(220,38,38,0.16)', linea: '#dc2626' };
+  if (/normal/i.test(texto))        return { fill: 'rgba(22,163,74,0.14)', linea: '#16a34a' };
+  return { fill: 'rgba(245,158,11,0.16)', linea: '#f59e0b' }; // bajo peso/talla, emaciación, delgadez, riesgo/sobrepeso, alto
+}
+
 function _riesgoDibujarCurvaEdad(canvas, indicador, edadMesesPersona, sexo, valorPersona) {
   const info = _riesgoTablaIndicador(indicador, edadMesesPersona, sexo);
   if (!info) return null;
@@ -2420,28 +2428,39 @@ function _riesgoDibujarCurvaEdad(canvas, indicador, edadMesesPersona, sexo, valo
   function xPix(mes) { return pad.l + ((mes - mesInicio) / (mesFin - mesInicio)) * plotW; }
   function yPix(val) { return pad.t + (1 - (val - yMin) / (yMax - yMin)) * plotH; }
 
-  // Banda "normal" sombreada entre -2 y +2 DE
-  ctx.fillStyle = 'rgba(34,197,94,0.10)';
-  ctx.beginPath();
-  curvas[1].forEach(function(v, i) { const x = xPix(mesInicio + i), y = yPix(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
-  for (let i = curvas[5].length - 1; i >= 0; i--) { const x = xPix(mesInicio + i), y = yPix(curvas[5][i]); ctx.lineTo(x, y); }
-  ctx.closePath(); ctx.fill();
+  // Construye las franjas reales según los puntos de corte de ESTE indicador (varían: en
+  // Peso/Talla lo normal es -2 a +2 DE, pero en IMC lo normal solo llega a +1 DE, etc.)
+  const fronterasInternas = info.cortes.slice(0, -1).map(c => c.max);
+  const fronteras = [-3, ...fronterasInternas, 3];
+  const zonas = info.cortes.map(function(c, i) {
+    return { zLow: fronteras[i], zHigh: fronteras[i + 1], texto: c.texto, color: _riesgoColorCategoria(c.texto) };
+  });
+  function curvaEnZ(z) { return curvas[z + 3]; } // z entero de -3 a 3 → índice 0..6
+
+  // Sombreado de cada franja con el color de su categoría real
+  zonas.forEach(function(zona) {
+    const cLow = curvaEnZ(zona.zLow), cHigh = curvaEnZ(zona.zHigh);
+    ctx.fillStyle = zona.color.fill;
+    ctx.beginPath();
+    cLow.forEach(function(v, i) { const x = xPix(mesInicio + i), y = yPix(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+    for (let i = cHigh.length - 1; i >= 0; i--) { const x = xPix(mesInicio + i), y = yPix(cHigh[i]); ctx.lineTo(x, y); }
+    ctx.closePath(); ctx.fill();
+  });
 
   // Ejes
   ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.setLineDash([]);
   ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, H - pad.b); ctx.lineTo(W - pad.r, H - pad.b); ctx.stroke();
 
-  // Líneas de referencia -3..+3 DE (la mediana, índice 3, resaltada en verde y sólida)
-  const colores = ['#ef4444', '#f97316', '#eab308', '#16a34a', '#eab308', '#f97316', '#ef4444'];
-  curvas.forEach(function(serie, idx) {
-    ctx.strokeStyle = colores[idx];
-    ctx.lineWidth = idx === 3 ? 2 : 1;
-    ctx.setLineDash(idx === 3 ? [] : [4, 3]);
+  // Líneas de cada frontera real (coloreadas según la categoría que empieza ahí) + la mediana (0 DE)
+  const zLineas = Array.from(new Set([...fronteras, 0]));
+  zLineas.forEach(function(z) {
+    const zonaEntrando = zonas.find(zn => z >= zn.zLow && z <= zn.zHigh) || zonas[zonas.length - 1];
+    ctx.strokeStyle = z === 0 ? '#16a34a' : zonaEntrando.color.linea;
+    ctx.lineWidth = z === 0 ? 2.5 : 1.4;
     ctx.beginPath();
-    serie.forEach(function(v, i) { const x = xPix(mesInicio + i), y = yPix(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+    curvaEnZ(z).forEach(function(v, i) { const x = xPix(mesInicio + i), y = yPix(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
     ctx.stroke();
   });
-  ctx.setLineDash([]);
 
   // Etiquetas del eje Y
   ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
@@ -2466,7 +2485,7 @@ function _riesgoDibujarCurvaEdad(canvas, indicador, edadMesesPersona, sexo, valo
   const lms = _riesgoLMS(tabla, mesInicio, edadMesesPersona);
   if (lms) clasificacion = _riesgoClasificar(_riesgoZ(lms[0], lms[1], lms[2], valorPersona), info.cortes);
 
-  return { unidad: info.unidad, clasificacion: clasificacion };
+  return { unidad: info.unidad, clasificacion: clasificacion, cortes: info.cortes };
 }
 
 // Para adultos no hay curva por edad (la OMS usa puntos de corte fijos): se dibuja una
@@ -2557,7 +2576,14 @@ function _riesgoActualizarGrafica(indicadorId) {
   } else {
     const r = _riesgoDibujarCurvaEdad(canvas, item.id, datos.edadMeses, datos.sexo, item.valor);
     if (r) {
-      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${item.valor} ${r.unidad} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>La línea verde sólida es la mediana OMS; la banda verde clara es el rango normal (-2 a +2 DE); el punto azul marca a la persona.`;
+      const leyenda = r.cortes.map(function(c) {
+        return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap;">
+                  <span style="width:9px;height:9px;border-radius:50%;background:${_riesgoColorCategoria(c.texto).linea};display:inline-block;"></span>${c.texto}
+                </span>`;
+      }).join('');
+      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${item.valor} ${r.unidad} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>
+        El punto azul marca a la persona. Categorías de este indicador:<br>
+        <div style="margin-top:4px;line-height:1.9;">${leyenda}</div>`;
     } else {
       resumen.innerHTML = 'No se pudo ubicar la edad dentro del rango de la tabla OMS correspondiente.';
     }
