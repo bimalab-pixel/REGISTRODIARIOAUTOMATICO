@@ -147,6 +147,15 @@
     }
     .modal-content h3 { font-size: 16px; margin-bottom: 8px; color: var(--primary); }
 
+    /* Botón de gráfica nutricional (dentro de la celda de Hallazgos) */
+    .btn-grafica-nutri {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: linear-gradient(135deg,#0ea5e9,#2563eb); color: #fff; border: none;
+      border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600;
+      cursor: pointer; margin-bottom: 5px;
+    }
+    .btn-grafica-nutri:active { transform: scale(.95); }
+
     /* Tarjetas del Formulario */
     .card {
       background: var(--card-bg);
@@ -979,6 +988,18 @@
     <div style="display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end;">
       <button onclick="cerrarModal()" style="background:#e2e8f0; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Cancelar</button>
       <button onclick="guardarModalKey()" style="background:var(--primary); color:white; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Guardar y usar este proveedor</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modalGraficaNutri">
+  <div class="modal-content" style="max-width:560px;">
+    <h3 id="graficaNutriTitulo">📊 Evaluación Nutricional</h3>
+    <div id="graficaNutriSelectorWrap" style="margin-bottom:10px;"></div>
+    <canvas id="graficaNutriCanvas" width="500" height="300" style="width:100%; height:auto; display:block; background:#fff; border:1px solid var(--border-color); border-radius:8px;"></canvas>
+    <div id="graficaNutriResumen" style="margin-top:10px; font-size:13px; color:var(--text-main); line-height:1.5;"></div>
+    <div style="text-align:right; margin-top:14px;">
+      <button type="button" onclick="cerrarGraficaNutri()" style="background:#e2e8f0; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -2107,7 +2128,7 @@ function riesgoCrecimiento(edadMeses, sexo, pesoKg, tallaCm) {
       const lms = _riesgoLMS(sexo === 'M' ? _OMS_BMIFA05_M : _OMS_BMIFA05_F, 0, edadMeses);
       if (lms) res.imcEdad = _riesgoClasificar(_riesgoZ(lms[0], lms[1], lms[2], imc), CORTES_IMC_0_5);
     }
-  } else if (edadMeses <= 228) {
+  } else if (edadMeses < 228) {
     if (tallaCm != null) {
       const lms = _riesgoLMS(sexo === 'M' ? _OMS_HFA519_M : _OMS_HFA519_F, 61, edadMeses);
       if (lms) res.tallaEdad = _riesgoClasificar(_riesgoZ(lms[0], lms[1], lms[2], tallaCm), CORTES_TALLA_EDAD);
@@ -2117,13 +2138,14 @@ function riesgoCrecimiento(edadMeses, sexo, pesoKg, tallaCm) {
       if (lms) res.imcEdad = _riesgoClasificar(_riesgoZ(lms[0], lms[1], lms[2], imc), CORTES_IMC_5_19);
     }
   } else if (imc != null) {
-    // Adulto: IMC con puntos de corte fijos OMS (no requiere tabla por edad)
+    // Adulto (19 años en adelante): IMC con puntos de corte fijos OMS, NO requiere tabla por edad/sexo
     let texto;
     if (imc < 18.5) texto = 'Bajo peso';
     else if (imc < 25) texto = 'Normal';
     else if (imc < 30) texto = 'Sobrepeso';
     else texto = 'Obesidad';
     res.imcAdulto = texto;
+    res.imcAdultoValor = Math.round(imc * 10) / 10;
   }
   return res;
 }
@@ -2179,20 +2201,55 @@ function _riesgoParsearNota(texto) {
   // Sexo: por palabras explícitas en la nota (con variantes de género/número)
   if (/\b(niñas?|femenin\w*|mujer(?:es)?|señora|sra\.?)\b/i.test(t)) datos.sexo = 'F';
   else if (/\b(niños?|masculin\w*|var[oó]n(?:es)?|hombres?|señor|sr\.?)\b/i.test(t)) datos.sexo = 'M';
+  // Respaldo: cuando la nota usa "la/el menor" en vez de "niña/niño" para referirse al paciente,
+  // el artículo ya revela el sexo aunque "menor" en sí no tenga variante de género.
+  else if (/\bla\s+menor\b/i.test(t)) datos.sexo = 'F';
+  else if (/\bel\s+menor\b/i.test(t)) datos.sexo = 'M';
 
   // Embarazo (afecta el umbral de hemoglobina)
   datos.embarazada = /\b(embaraz\w*|gestante)\b/i.test(t);
 
-  // Peso: "16 kg", "16kg", "16.5 kg"
-  m = t.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+  // Peso: "16 kg", "16kg", "16.5 kg", "16 kgs", "16 kg.", y abreviatura rápida "16k" (sin la g)
+  m = t.match(/(\d+(?:[.,]\d+)?)\s*kgs?\.?(?:\s|$|[.,;)])/i);
   if (m) datos.pesoKg = parseFloat(m[1].replace(',', '.'));
+  else {
+    m = t.match(/(\d+(?:[.,]\d+)?)\s*k\.?(?:\s|$|[.,;)])/i);
+    if (m) datos.pesoKg = parseFloat(m[1].replace(',', '.'));
+  }
+  if (datos.pesoKg == null) {
+    // A veces el promotor anota el peso en libras en vez de kg (báscula en libras). Se detecta
+    // explícitamente y se convierte a kg (1 lb = 0.453592 kg); si no se convierte aquí, el número
+    // en libras se usaría tal cual como si fueran kg, dando un IMC muy por encima del real.
+    m = t.match(/(\d+(?:[.,]\d+)?)\s*(?:libras?|lbs?)\.?(?:\s|$|[.,;)])/i);
+    if (m) datos.pesoKg = Math.round(parseFloat(m[1].replace(',', '.')) * 0.453592 * 10) / 10;
+  }
+  if (datos.pesoKg == null) {
+    // Respaldo: la palabra "peso"/"pesa" ya deja claro qué es el número, aunque no traiga
+    // ninguna unidad ("Peso: 65", "pesa 65"). Solo se acepta si el número cae en un rango
+    // humano plausible (evita capturar por error una edad, hora, etc.).
+    m = t.match(/\bpes[oa]\w*\b\s*[:\-]?\s*(\d+(?:[.,]\d+)?)\b/i);
+    if (m) {
+      const v = parseFloat(m[1].replace(',', '.'));
+      if (v >= 1.5 && v <= 400) datos.pesoKg = v;
+    }
+  }
 
-  // Talla: "108 cm" o "1.08 m" / "1,08 m"
-  m = t.match(/(\d+(?:[.,]\d+)?)\s*cm\b/i);
+  // Talla: "108 cm", "108 cms", "1.08 m", "1,08 m", "1.08 mts", "1.08 mts."
+  m = t.match(/(\d+(?:[.,]\d+)?)\s*cms?\.?(?:\s|$|[.,;)])/i);
   if (m) datos.tallaCm = parseFloat(m[1].replace(',', '.'));
   else {
-    m = t.match(/(\d+[.,]\d+)\s*m\b/i);
+    m = t.match(/(\d+[.,]\d+)\s*m(?:ts?)?\.?(?:\s|$|[.,;)])/i);
     if (m) datos.tallaCm = parseFloat(m[1].replace(',', '.')) * 100;
+  }
+  if (datos.tallaCm == null) {
+    // Respaldo: "talla"/"mide"/"estatura" seguido de un número sin unidad. Si el número trae
+    // decimales y es menor a 3, se asume que está en metros; si no, se asume que ya está en cm.
+    m = t.match(/\b(?:talla|mide|estatura)\w*\b\s*[:\-]?\s*(\d+(?:[.,]\d+)?)\b/i);
+    if (m) {
+      const v = parseFloat(m[1].replace(',', '.'));
+      if (v > 0 && v < 3) { if (v >= 0.3) datos.tallaCm = v * 100; }
+      else if (v >= 30 && v <= 250) datos.tallaCm = v;
+    }
   }
 
   // Hemoglobina: "Hb 13.5", "hemoglobina 13,5", "Hb: 10.5 g/dl"
@@ -2233,6 +2290,11 @@ function _riesgoParsearEdadCampo(texto) {
   // así encaja con la interpolación mensual del cálculo OMS en vez de perderse por completo.
   m = t.match(/(\d+(?:[.,]\d+)?)\s*d[ií]a/i);
   if (m) return parseFloat(m[1].replace(',', '.')) / 30;
+  // Abreviaturas cortas típicas al escribir rápido en campo: "45a" (años), "8m" (meses)
+  m = t.match(/^(\d+(?:[.,]\d+)?)\s*a\.?$/i);
+  if (m) return Math.round(parseFloat(m[1].replace(',', '.')) * 12);
+  m = t.match(/^(\d+(?:[.,]\d+)?)\s*m\.?$/i);
+  if (m) return Math.round(parseFloat(m[1].replace(',', '.')));
   m = t.match(/^(\d+(?:[.,]\d+)?)$/); // número solo, sin unidad → se asume años
   if (m) return Math.round(parseFloat(m[1].replace(',', '.')) * 12);
   return null;
@@ -2247,15 +2309,19 @@ function riesgoEvaluarNota(texto, edadMesesCampo) {
   if (edadMesesCampo != null) d.edadMeses = edadMesesCampo;
   const partes = [];
 
-  if (d.edadMeses != null && d.sexo && (d.pesoKg != null || d.tallaCm != null)) {
+  const esAdulto = d.edadMeses != null && d.edadMeses >= 228; // 19 años en adelante
+  if (esAdulto && d.pesoKg != null && d.tallaCm != null) {
+    // Adulto: el IMC no depende del sexo (los cortes de la OMS son los mismos para ambos),
+    // así que se calcula aunque la nota no mencione explícitamente si es hombre o mujer.
+    const r = riesgoCrecimiento(d.edadMeses, d.sexo, d.pesoKg, d.tallaCm);
+    if (r.imcAdulto) partes.push('IMC: ' + r.imcAdultoValor + ' (' + r.imcAdulto + ')');
+  } else if (d.edadMeses != null && d.sexo && (d.pesoKg != null || d.tallaCm != null)) {
+    // Menor de edad: las tablas de crecimiento de la OMS sí son específicas por sexo,
+    // por lo que aquí sí se requiere haberlo detectado con certeza en la nota.
     const r = riesgoCrecimiento(d.edadMeses, d.sexo, d.pesoKg, d.tallaCm);
     if (r.pesoEdad) partes.push('Peso/Edad: ' + r.pesoEdad);
     if (r.tallaEdad) partes.push('Talla/Edad: ' + r.tallaEdad);
     if (r.imcEdad) partes.push('IMC/Edad: ' + r.imcEdad);
-    if (r.imcAdulto) partes.push('IMC: ' + r.imcAdulto);
-  } else if (d.pesoKg != null && d.tallaCm != null && d.edadMeses == null) {
-    // Edad no detectada pero si son valores de adulto evidentes, no se puede asumir con certeza —
-    // se omite en vez de adivinar el rango etario.
   }
 
   if (d.hbGdl != null) {
@@ -2275,6 +2341,231 @@ function riesgoEvaluarNota(texto, edadMesesCampo) {
 
   if (!partes.length) return null;
   return '[Evaluación automática OMS — ' + partes.join('; ') + ']';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GRÁFICA DE EVALUACIÓN NUTRICIONAL (curvas OMS) — dibuja en <canvas>
+// el punto de la persona sobre la curva oficial correspondiente,
+// reutilizando las mismas tablas LMS de arriba. Todo se recalcula al
+// vuelo desde el texto ya escrito en la fila (Edad + Hallazgos), así
+// que si el usuario edita el texto, la próxima vez que abra la
+// gráfica ya refleja el cambio, sin necesidad de guardar nada aparte.
+// ══════════════════════════════════════════════════════════════════
+
+function _riesgoTablaIndicador(indicador, edadMeses, sexo) {
+  if (indicador === 'pesoEdad') {
+    return { tabla: sexo === 'M' ? _OMS_WFA_M : _OMS_WFA_F, mesInicio: 0, unidad: 'kg', cortes: CORTES_PESO_EDAD };
+  }
+  if (indicador === 'tallaEdad') {
+    if (edadMeses <= 60) return { tabla: sexo === 'M' ? _OMS_LHFA_M : _OMS_LHFA_F, mesInicio: 0, unidad: 'cm', cortes: CORTES_TALLA_EDAD };
+    return { tabla: sexo === 'M' ? _OMS_HFA519_M : _OMS_HFA519_F, mesInicio: 61, unidad: 'cm', cortes: CORTES_TALLA_EDAD };
+  }
+  if (indicador === 'imcEdad') {
+    if (edadMeses <= 60) return { tabla: sexo === 'M' ? _OMS_BMIFA05_M : _OMS_BMIFA05_F, mesInicio: 0, unidad: 'kg/m²', cortes: CORTES_IMC_0_5 };
+    return { tabla: sexo === 'M' ? _OMS_BMIFA519_M : _OMS_BMIFA519_F, mesInicio: 61, unidad: 'kg/m²', cortes: CORTES_IMC_5_19 };
+  }
+  return null;
+}
+
+// Fórmula inversa OMS: dado L,M,S de una edad y una puntuación Z, devuelve el valor (peso/talla/imc)
+function _riesgoValorParaZ(L, M, S, z) {
+  if (Math.abs(L) < 1e-9) return M * Math.exp(S * z);
+  return M * Math.pow(1 + L * S * z, 1 / L);
+}
+
+// A partir del texto de Edad + Hallazgos (o nota) de una fila, determina qué indicadores
+// nutricionales aplican (Peso/Edad, Talla/Edad, IMC/Edad en menores; IMC en adultos) y con
+// qué valor. Devuelve null si no hay datos suficientes (sexo, edad, peso o talla).
+function _riesgoDatosGrafica(edadTexto, notaTexto) {
+  const edadMeses = _riesgoParsearEdadCampo(edadTexto);
+  if (edadMeses == null) return null;
+  const d = _riesgoParsearNota(notaTexto);
+  const imc = (d.pesoKg && d.tallaCm) ? d.pesoKg / Math.pow(d.tallaCm / 100, 2) : null;
+
+  const disponibles = [];
+  if (edadMeses < 228 && d.sexo) {
+    if (edadMeses <= 60 && d.pesoKg != null) disponibles.push({ id: 'pesoEdad', etiqueta: 'Peso / Edad', valor: d.pesoKg });
+    if (d.tallaCm != null) disponibles.push({ id: 'tallaEdad', etiqueta: 'Talla / Edad', valor: d.tallaCm });
+    if (imc != null) disponibles.push({ id: 'imcEdad', etiqueta: 'IMC / Edad', valor: Math.round(imc * 10) / 10 });
+  } else if (edadMeses >= 228 && imc != null) {
+    disponibles.push({ id: 'imcAdulto', etiqueta: 'IMC (adulto)', valor: Math.round(imc * 10) / 10 });
+  }
+  if (!disponibles.length) return null;
+  return { edadMeses, sexo: d.sexo, disponibles };
+}
+
+// Dibuja la curva OMS (líneas -3 a +3 DE) para el indicador dado y marca el punto de la persona.
+// Devuelve { unidad, clasificacion } para mostrar debajo del gráfico, o null si no hay tabla.
+function _riesgoDibujarCurvaEdad(canvas, indicador, edadMesesPersona, sexo, valorPersona) {
+  const info = _riesgoTablaIndicador(indicador, edadMesesPersona, sexo);
+  if (!info) return null;
+  const tabla = info.tabla, mesInicio = info.mesInicio;
+  const mesFin = mesInicio + tabla.length - 1;
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { l: 44, r: 14, t: 14, b: 30 };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+
+  const zs = [-3, -2, -1, 0, 1, 2, 3];
+  const curvas = zs.map(z => tabla.map(row => _riesgoValorParaZ(row[0], row[1], row[2], z)));
+
+  let yMin = Math.min.apply(null, curvas[0]), yMax = Math.max.apply(null, curvas[curvas.length - 1]);
+  const margenY = (yMax - yMin) * 0.06;
+  yMin -= margenY; yMax += margenY;
+
+  function xPix(mes) { return pad.l + ((mes - mesInicio) / (mesFin - mesInicio)) * plotW; }
+  function yPix(val) { return pad.t + (1 - (val - yMin) / (yMax - yMin)) * plotH; }
+
+  // Banda "normal" sombreada entre -2 y +2 DE
+  ctx.fillStyle = 'rgba(34,197,94,0.10)';
+  ctx.beginPath();
+  curvas[1].forEach(function(v, i) { const x = xPix(mesInicio + i), y = yPix(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+  for (let i = curvas[5].length - 1; i >= 0; i--) { const x = xPix(mesInicio + i), y = yPix(curvas[5][i]); ctx.lineTo(x, y); }
+  ctx.closePath(); ctx.fill();
+
+  // Ejes
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, H - pad.b); ctx.lineTo(W - pad.r, H - pad.b); ctx.stroke();
+
+  // Líneas de referencia -3..+3 DE (la mediana, índice 3, resaltada en verde y sólida)
+  const colores = ['#ef4444', '#f97316', '#eab308', '#16a34a', '#eab308', '#f97316', '#ef4444'];
+  curvas.forEach(function(serie, idx) {
+    ctx.strokeStyle = colores[idx];
+    ctx.lineWidth = idx === 3 ? 2 : 1;
+    ctx.setLineDash(idx === 3 ? [] : [4, 3]);
+    ctx.beginPath();
+    serie.forEach(function(v, i) { const x = xPix(mesInicio + i), y = yPix(v); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  // Etiquetas del eje Y
+  ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+  [yMin, (yMin + yMax) / 2, yMax].forEach(function(v) { ctx.fillText(v.toFixed(1), pad.l - 6, yPix(v) + 3); });
+
+  // Etiquetas del eje X (edad)
+  ctx.textAlign = 'center';
+  const pasoMeses = (mesFin - mesInicio) > 100 ? 24 : 12;
+  for (let mes = mesInicio; mes <= mesFin; mes += pasoMeses) {
+    const x = xPix(mes);
+    ctx.fillText(mes % 12 === 0 ? (mes / 12) + 'a' : mes + 'm', x, H - pad.b + 14);
+  }
+
+  // Punto de la persona
+  let clasificacion = null;
+  if (edadMesesPersona >= mesInicio && edadMesesPersona <= mesFin) {
+    const px = xPix(edadMesesPersona), py = yPix(valorPersona);
+    ctx.fillStyle = '#1d4ed8';
+    ctx.beginPath(); ctx.arc(px, py, 5, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  const lms = _riesgoLMS(tabla, mesInicio, edadMesesPersona);
+  if (lms) clasificacion = _riesgoClasificar(_riesgoZ(lms[0], lms[1], lms[2], valorPersona), info.cortes);
+
+  return { unidad: info.unidad, clasificacion: clasificacion };
+}
+
+// Para adultos no hay curva por edad (la OMS usa puntos de corte fijos): se dibuja una
+// escala horizontal de colores con el IMC de la persona marcado encima.
+function _riesgoDibujarEscalaIMCAdulto(canvas, imcValor) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const pad = { l: 30, r: 30 };
+  const plotW = W - pad.l - pad.r;
+  const minIMC = 12, maxIMC = 42;
+  function xPix(v) { return pad.l + ((v - minIMC) / (maxIMC - minIMC)) * plotW; }
+
+  const zonas = [
+    { hasta: 18.5, color: '#eab308', texto: 'Bajo peso' },
+    { hasta: 25, color: '#16a34a', texto: 'Normal' },
+    { hasta: 30, color: '#f97316', texto: 'Sobrepeso' },
+    { hasta: maxIMC, color: '#ef4444', texto: 'Obesidad' }
+  ];
+  const barY = H / 2 - 16, barH = 32;
+  let prev = minIMC;
+  zonas.forEach(function(z) {
+    ctx.fillStyle = z.color;
+    ctx.fillRect(xPix(prev), barY, xPix(z.hasta) - xPix(prev), barH);
+    if (xPix(z.hasta) - xPix(prev) > 40) {
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(z.texto, (xPix(prev) + xPix(z.hasta)) / 2, barY + barH / 2 + 4);
+    }
+    prev = z.hasta;
+  });
+
+  const px = xPix(Math.min(Math.max(imcValor, minIMC), maxIMC));
+  ctx.strokeStyle = '#1d4ed8'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px, barY - 10); ctx.lineTo(px, barY + barH + 10); ctx.stroke();
+  ctx.fillStyle = '#1d4ed8'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(imcValor.toFixed(1), px, barY - 16);
+
+  ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif';
+  [15, 18.5, 25, 30, 35, 40].forEach(function(v) { ctx.fillText(v, xPix(v), barY + barH + 24); });
+}
+
+let _riesgoGraficaDatosActual = null;
+
+// Se llama desde el botón 📊 de cada fila con datos nutricionales.
+function abrirGraficaNutricional(btn) {
+  const fila = btn.closest('tr');
+  const tabla = fila ? fila.closest('table') : null;
+  if (!fila || !tabla) return;
+  const ths = Array.prototype.slice.call(tabla.querySelectorAll('thead th')).map(function(th) { return th.textContent.trim().toLowerCase(); });
+  const idxNombre = ths.findIndex(function(h) { return h.indexOf('nombre') !== -1; });
+  const idxEdadL = ths.findIndex(function(h) { return h === 'edad'; });
+  const idxHallazgosL = ths.findIndex(function(h) { return h.indexOf('hallazgos') !== -1; });
+  const celdas = fila.querySelectorAll('textarea');
+
+  const nombre = (idxNombre >= 0 && celdas[idxNombre]) ? celdas[idxNombre].value.trim() : 'Esta persona';
+  const edadTexto = (idxEdadL >= 0 && celdas[idxEdadL]) ? celdas[idxEdadL].value.trim() : '';
+  const hallazgosTexto = (idxHallazgosL >= 0 && celdas[idxHallazgosL]) ? celdas[idxHallazgosL].value.trim() : '';
+
+  const datos = _riesgoDatosGrafica(edadTexto, hallazgosTexto);
+  if (!datos) { alert('No se detectaron suficientes datos (edad, sexo, peso o talla) en esta fila para graficar.'); return; }
+
+  _riesgoGraficaDatosActual = datos;
+  document.getElementById('graficaNutriTitulo').textContent = '📊 Evaluación Nutricional — ' + nombre;
+
+  const selectorWrap = document.getElementById('graficaNutriSelectorWrap');
+  if (datos.disponibles.length > 1) {
+    let opciones = '';
+    datos.disponibles.forEach(function(d) { opciones += `<option value="${d.id}">${d.etiqueta}</option>`; });
+    selectorWrap.innerHTML = `<select id="graficaNutriSelector" onchange="_riesgoActualizarGrafica(this.value)" style="width:100%; padding:8px; border:1px solid var(--border-color); border-radius:6px; color:var(--text-main); background:white;">${opciones}</select>`;
+  } else {
+    selectorWrap.innerHTML = '';
+  }
+
+  document.getElementById('modalGraficaNutri').style.display = 'flex';
+  _riesgoActualizarGrafica(datos.disponibles[0].id);
+}
+
+function _riesgoActualizarGrafica(indicadorId) {
+  const datos = _riesgoGraficaDatosActual;
+  if (!datos) return;
+  const item = datos.disponibles.find(function(d) { return d.id === indicadorId; }) || datos.disponibles[0];
+  const canvas = document.getElementById('graficaNutriCanvas');
+  const resumen = document.getElementById('graficaNutriResumen');
+
+  if (item.id === 'imcAdulto') {
+    _riesgoDibujarEscalaIMCAdulto(canvas, item.valor);
+    resumen.innerHTML = `<b>IMC:</b> ${item.valor} kg/m² — clasificación según los puntos de corte fijos de la OMS para adultos (no varía por edad).`;
+  } else {
+    const r = _riesgoDibujarCurvaEdad(canvas, item.id, datos.edadMeses, datos.sexo, item.valor);
+    if (r) {
+      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${item.valor} ${r.unidad} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>La línea verde sólida es la mediana OMS; la banda verde clara es el rango normal (-2 a +2 DE); el punto azul marca a la persona.`;
+    } else {
+      resumen.innerHTML = 'No se pudo ubicar la edad dentro del rango de la tabla OMS correspondiente.';
+    }
+  }
+}
+
+function cerrarGraficaNutri() {
+  document.getElementById('modalGraficaNutri').style.display = 'none';
 }
 
 
@@ -2751,6 +3042,12 @@ const _asrAperturasAcciones = [
   'Se brindó consejería enfocada en', 'La atención incluyó orientación sobre'
 ];
 
+// Contador persistente (no se reinicia en cada llamada a generarInforme): al agregar personas
+// de una en una y presionar "Generar" varias veces seguidas, cada persona nueva debe recibir
+// la SIGUIENTE apertura de la lista, no siempre la apertura #0 — de lo contrario, como ahora
+// cada clic normalmente solo procesa 1 persona nueva, todas terminarían empezando igual.
+let _asrContadorAperturas = 0;
+
 // Extrae números (incluye cifras compuestas como 145/90, 37.5, semanas, dosis) para verificar que no se pierdan
 function _asrExtraerNumeros(texto) {
   const m = (texto || '').match(/\d+(?:[.:\/-]\d+)*/g) || [];
@@ -2777,11 +3074,13 @@ async function generarInforme() {
 
   const filasEntrada = document.querySelectorAll('#tablaEntrada tbody tr');
   let datosEntradaTexto = "";
-  let tieneDatos = false;
-  const itemsEntrada = [];
+  let tieneDatosTotales = false;
+  let tieneDatosNuevos = false;
+  const itemsEntrada = []; // solo las filas NUEVAS o MODIFICADAS que hay que mandar a la IA
+  const filasParaMerge = []; // TODAS las filas con datos, en orden, para reconstruir la tabla final
 
   let hayRiesgoDetectado = false;
-  filasEntrada.forEach((fila, index) => {
+  filasEntrada.forEach((fila) => {
     const textareas = fila.querySelectorAll('textarea');
     const fecha = textareas[0].value.trim();
     const hora = textareas[1].value.trim();
@@ -2790,28 +3089,66 @@ async function generarInforme() {
     const edad = textareas[4].value.trim();
     const notas = textareas[5].value.trim();
 
-    if (nombre || notas) {
-      tieneDatos = true;
-      const aperturaHallazgos = _asrAperturasHallazgos[itemsEntrada.length % _asrAperturasHallazgos.length];
-      const aperturaAcciones = _asrAperturasAcciones[itemsEntrada.length % _asrAperturasAcciones.length];
-      const edadMeses = _riesgoParsearEdadCampo(edad);
-      const etiquetaRiesgo = riesgoEvaluarNota(notas, edadMeses);
-      if (etiquetaRiesgo) hayRiesgoDetectado = true;
-      itemsEntrada.push({
-        pos: itemsEntrada.length + 1,
-        fecha, hora, vivienda,
-        nombre: nombre || 'No especificado',
-        edad: edad || 'No especificada',
-        notas: notas || 'Sin observaciones',
-        numerosOriginales: _asrExtraerNumeros(notas),
-        aperturaHallazgos, aperturaAcciones
-      });
-      datosEntradaTexto += `${itemsEntrada.length}. Nombre: ${nombre || 'No especificado'} | Edad: ${edad || 'No especificada'} | Inicio obligatorio Hallazgos: "${aperturaHallazgos}" | Inicio obligatorio Acciones: "${aperturaAcciones}" | Notas: ${notas || 'Sin observaciones'}${etiquetaRiesgo ? ' ' + etiquetaRiesgo : ''}\n`;
+    if (!(nombre || notas)) return; // fila vacía: se ignora, igual que antes
+    tieneDatosTotales = true;
+
+    // Si esta fila ya se generó antes con exactamente los mismos datos (nombre/edad/notas
+    // sin cambios), se reutiliza el resultado guardado y NO se vuelve a mandar a la IA.
+    const huellaActual = JSON.stringify({ nombre, edad, notas });
+    if (fila.dataset.asrHuella === huellaActual && fila.dataset.asrCols) {
+      filasParaMerge.push({ fuente: 'cache', fecha, hora, vivienda, cols: JSON.parse(fila.dataset.asrCols) });
+      return;
     }
+
+    tieneDatosNuevos = true;
+    const aperturaHallazgos = _asrAperturasHallazgos[_asrContadorAperturas % _asrAperturasHallazgos.length];
+    const aperturaAcciones = _asrAperturasAcciones[_asrContadorAperturas % _asrAperturasAcciones.length];
+    _asrContadorAperturas++;
+    const edadMeses = _riesgoParsearEdadCampo(edad);
+    const etiquetaRiesgo = riesgoEvaluarNota(notas, edadMeses);
+    if (etiquetaRiesgo) hayRiesgoDetectado = true;
+    const numerosOriginales = _asrExtraerNumeros(notas);
+    // El valor exacto del IMC (si se calculó) también debe exigirse en la verificación de
+    // cifras perdidas, para garantizar que la IA siempre lo incluya y no solo la categoría.
+    if (etiquetaRiesgo) {
+      const mImc = etiquetaRiesgo.match(/IMC:\s*([\d.]+)/);
+      if (mImc && numerosOriginales.indexOf(mImc[1]) === -1) numerosOriginales.push(mImc[1]);
+      // Igual que el IMC de adultos: las clasificaciones pediátricas (Peso/Edad, Talla/Edad,
+      // IMC/Edad) también deben quedar forzadas en la verificación de "faltantes", para que
+      // el reintento automático las cubra si la IA las omite. Sin esto, en niños la mención
+      // de la clasificación quedaba a discreción de la IA y salía de forma inconsistente
+      // (a veces sí, a veces no) aunque el dato ya estuviera calculado correctamente.
+      ['Peso/Edad', 'Talla/Edad', 'IMC/Edad'].forEach(campo => {
+        const re = new RegExp(campo.replace('/', '\\/') + ':\\s*([^;\\]]+)');
+        const m = etiquetaRiesgo.match(re);
+        if (m) {
+          const categoria = m[1].trim();
+          if (numerosOriginales.indexOf(categoria) === -1) numerosOriginales.push(categoria);
+        }
+      });
+    }
+    const item = {
+      pos: itemsEntrada.length + 1,
+      fecha, hora, vivienda,
+      nombre: nombre || 'No especificado',
+      edad: edad || 'No especificada',
+      notas: notas || 'Sin observaciones',
+      numerosOriginales,
+      aperturaHallazgos, aperturaAcciones,
+      _fila: fila, _huella: huellaActual
+    };
+    itemsEntrada.push(item);
+    datosEntradaTexto += `${itemsEntrada.length}. Nombre: ${nombre || 'No especificado'} | Edad: ${edad || 'No especificada'} | Inicio obligatorio Hallazgos: "${aperturaHallazgos}" | Inicio obligatorio Acciones: "${aperturaAcciones}" | Notas: ${notas || 'Sin observaciones'}${etiquetaRiesgo ? ' ' + etiquetaRiesgo : ''}\n`;
+    filasParaMerge.push({ fuente: 'nueva', fecha, hora, vivienda, itemRef: item });
   });
 
-  if (!tieneDatos) {
+  if (!tieneDatosTotales) {
     alert('Ingresa al menos las notas de un paciente.');
+    return;
+  }
+
+  if (!tieneDatosNuevos) {
+    alert('✅ No hay personas nuevas ni notas modificadas para generar: todas ya estaban generadas (no se gastó ninguna solicitud a la IA).');
     return;
   }
 
@@ -2821,16 +3158,16 @@ async function generarInforme() {
   if (modo === "resumido") {
     reglaDetalle = `
 4. Estilo RESUMIDO Y DIRECTO (el más corto de los 3 niveles):
-   - "Hallazgos": UNA sola oración corta y directa (máximo ~15 palabras). Solo el dato principal, sin contexto adicional.
-   - "Acciones Ejecutadas": UNA sola oración corta (máximo ~15-18 palabras) que mencione la recomendación principal y el acuerdo, fusionados en una sola frase.
-   - No agregues explicaciones, contexto clínico ni antecedentes. Ve directo al punto.`;
+   - Si la nota original es breve: "Hallazgos" en UNA sola oración corta y directa (máximo ~15 palabras), solo el dato principal, sin contexto adicional. "Acciones Ejecutadas" en UNA sola oración corta (máximo ~15-18 palabras) que mencione la recomendación principal y el acuerdo, fusionados en una sola frase.
+   - Pero si la nota original ya trae varias oraciones o bastante detalle, NO la recortes ni le quites contenido para forzarla a 1 sola oración: conserva TODA la información ya escrita por el promotor, solo corrigiendo ortografía y redacción.
+   - No agregues explicaciones, contexto clínico ni antecedentes que el promotor no haya mencionado. Ve directo al punto.`;
     temp = 0.25;
   } else if (modo === "balanceado") {
     reglaDetalle = `
 4. Estilo BALANCEADO (equilibrio entre completo y conciso, NO tan extenso como el modo Detallado, pero SIN dejar ningún tema fuera):
    - Cubre TODOS los temas o condiciones que mencione la nota de cada paciente, cada uno con su razonamiento (por qué es relevante o qué riesgo implica) y su acción/consejería correspondiente. No omitas un tema solo para acortar el texto.
-   - Como referencia de extensión: si la nota trae 1 solo tema, usa 2 oraciones en "Hallazgos" y 2 en "Acciones Ejecutadas". Si trae 2 o 3 temas, usa una oración compacta por tema en cada columna (puedes fusionar temas muy relacionados en una sola oración si tiene sentido clínico).
-   - No repitas ideas ni agregues relleno; sé directo pero completo. La meta es que se lea denso en información útil, ni telegráfico ni saturado de paja.`;
+   - Como referencia de extensión MÍNIMA (no es un techo): si la nota trae 1 solo tema, usa al menos 2 oraciones en "Hallazgos" y 2 en "Acciones Ejecutadas". Si trae 2 o 3 temas, usa al menos una oración compacta por tema en cada columna (puedes fusionar temas muy relacionados en una sola oración si tiene sentido clínico). Si la nota original que escribió el promotor ya trae bastante texto o detalle, esta referencia queda sin efecto: conserva TODA esa información (reformulada si hace falta), aunque el resultado quede más largo que esta referencia.
+   - No repitas ideas ni agregues relleno; sé directo pero completo. La meta es que se lea denso en información útil, ni telegráfico ni saturado de paja. Pero JAMÁS omitas o acortes contenido que el promotor ya redactó solo para que el texto sea más corto.`;
     temp = 0.35;
   } else if (modo === "detallado") {
     reglaDetalle = `
@@ -2885,6 +3222,11 @@ DATO CLÍNICO OBLIGATORIO (regla crítica, no negociable):
    - Está PROHIBIDO omitir o "perder" un dato numérico o clínico concreto de la nota original por resumir o embellecer la redacción. Si la nota menciona un resultado, una cifra o una fecha, esa información debe estar presente en el texto final, en algún punto de las dos columnas.
    - Antes de redactar cada fila, revisa mentalmente la nota original dato por dato y verifica que ninguno se haya quedado fuera del texto generado.
 
+PROHIBIDO RECORTAR INFORMACIÓN YA ESCRITA (regla crítica, no negociable):
+   - Tu tarea NO es resumir ni acortar lo que el promotor ya escribió en su nota. Tu tarea es: (a) corregir ortografía y gramática si hay errores, (b) ordenar la redacción en el formato oficial de este informe, y (c) agregar razonamiento clínico, riesgo o consejería relacionada cuando corresponda.
+   - Si la nota de un paciente ya trae bastante texto, varias ideas o mucho detalle, el resultado de ese paciente debe conservar TODA esa información (puedes reformularla para que suene formal, pero sin perder ningún dato ni idea), aunque el texto final quede más largo que la referencia de extensión indicada para el nivel elegido (incluso en Resumido o Balanceado).
+   - Las referencias de extensión (número de oraciones) son un PISO mínimo para notas escuetas, nunca una excusa para eliminar contenido que el promotor ya redactó.
+
 COBERTURA COMPLETA DE TODOS LOS TEMAS MENCIONADOS (regla crítica, no negociable):
    - Si la nota de un paciente menciona MÁS DE UN hallazgo, condición o tema independiente (ej: "depresión y citología atrasada", "hipertensión y control de niño sano"), la respuesta DEBE abordar TODOS y cada uno de esos temas, tanto en "Hallazgos en la Visita" como en "Acciones Ejecutadas". Está PROHIBIDO responder solo al primer tema y omitir el segundo (o el tercero).
    - Cada tema debe tener: (a) su propio razonamiento o riesgo en "Hallazgos", y (b) su propia acción/consejería en "Acciones Ejecutadas". Ningún tema puede quedar solo mencionado sin su acción correspondiente.
@@ -2893,7 +3235,12 @@ COBERTURA COMPLETA DE TODOS LOS TEMAS MENCIONADOS (regla crítica, no negociable
 
 5. Procesa TODOS los pacientes listados sin omitir a ninguno.
 6. Devuelve ÚNICAMENTE la tabla TSV limpia (sin marcas markdown \`\`\`tsv ni introducciones).
-${incluirReglaRiesgoOMS ? '\n7. Algunos pacientes incluyen al final de su nota una etiqueta "[Evaluación automática OMS — ...]" calculada matemáticamente contra tablas oficiales (no la inventaste tú, no la contradigas). Incorpórala de forma natural y parafraseada dentro de "Hallazgos en la Visita" de ESE paciente (ej. "con un peso adecuado para su edad", "con anemia leve según su hemoglobina"), sin citarla entre corchetes ni mencionar que fue "calculada" o "automática".' : ''}
+${incluirReglaRiesgoOMS ? '\n7. Algunos pacientes incluyen al final de su nota una etiqueta "[Evaluación automática OMS — ...]" calculada matemáticamente contra tablas oficiales (no la inventaste tú, no la contradigas). Incorpórala de forma natural dentro de "Hallazgos en la Visita" de ESE paciente, sin citarla entre corchetes ni mencionar que fue "calculada" o "automática". Puedes envolverla en una frase natural (ej. "presenta un peso adecuado para su edad"), pero DEBES conservar literalmente la categoría exacta de la etiqueta (ej. si dice "Peso/Edad: Bajo peso severo", el texto final debe incluir en algún punto las palabras "bajo peso severo"; si dice "Talla/Edad: Normal", debe incluir "normal" referido a la talla). Esto es OBLIGATORIO para Peso/Edad, Talla/Edad e IMC/Edad de niños, exactamente igual de obligatorio que reportar el número exacto del IMC en adultos — nunca lo omitas ni lo reemplaces por una descripción vaga que no use la palabra de la categoría.\n7b. ORDEN OBLIGATORIO en pacientes pediátricos (menores de edad) que traigan etiqueta OMS de Peso/Edad, Talla/Edad o IMC/Edad: la PRIMERA oración de "Hallazgos en la Visita" debe mencionar el dato (peso y/o talla) INMEDIATAMENTE seguido de su clasificación OMS (ej. "Presenta un peso de 12 kg, correspondiente a un peso normal para su edad"). El razonamiento clínico, el contexto o el riesgo asociado va DESPUÉS, en una oración separada, nunca antes de haber establecido la clasificación. No dejes la clasificación para el final del párrafo ni la mezcles en medio del razonamiento.' : ''}
+
+PROHIBIDO CALCULAR O CLASIFICAR TÚ MISMO EL IMC / ESTADO NUTRICIONAL (regla crítica, no negociable):
+   - Tú NO sabes hacer aritmética confiable ni conoces de memoria las tablas oficiales de la OMS: NUNCA calcules el IMC, ni digas si un paciente está en "sobrepeso", "obesidad", "bajo peso", "normal", "desnutrición" o cualquier clasificación de estado nutricional, salvo que esa clasificación exacta ya venga dada textualmente en la etiqueta "[Evaluación automática OMS — ...]" de ese paciente (ahí sí puedes parafrasearla, ya fue calculada matemáticamente y es confiable).
+   - Cuando la etiqueta incluya "IMC: <número> (<categoría>)", SIEMPRE debes mencionar en "Hallazgos en la Visita" el VALOR NUMÉRICO EXACTO del IMC junto con su categoría (ej. "con un índice de masa corporal de 40.6, correspondiente a obesidad"). NUNCA menciones solo la categoría ("con un estado de obesidad según su IMC") omitiendo el número — el número exacto es un dato obligatorio, no opcional.
+   - Si un paciente menciona peso y/o talla pero NO trae esa etiqueta para ese dato, simplemente reporta el peso y la talla tal como los escribió el promotor (ej. "con un peso de 65 kg y una talla de 1.40 m"), SIN agregar ninguna interpretación de si eso es normal, alto, bajo, sobrepeso, obesidad, etc. — eso lo debe evaluar humanamente el promotor, no tú.
 
 `;
   }
@@ -3008,8 +3355,12 @@ ${incluirReglaRiesgoOMS ? '\n7. Algunos pacientes incluyen al final de su nota u
       // Verifica que ninguna cifra exacta de la nota original se haya perdido, por paciente
       const faltantesPorFila = [];
       filasResultado.forEach((cols, i) => {
-        const combinado = `${cols[2] || ''} ${cols[3] || ''}`;
-        const faltan = itemsEntrada[i].numerosOriginales.filter(n => combinado.indexOf(n) === -1);
+        const combinado = `${cols[2] || ''} ${cols[3] || ''}`.replace(/(\d),(\d)/g, '$1.$2');
+        // Comparación insensible a mayúsculas/minúsculas: las cifras no la necesitan, pero las
+        // categorías OMS (ej. "Normal") sí, ya que la IA las escribe en minúscula dentro de la
+        // oración de forma correcta y no deben marcarse como "faltantes" por eso.
+        const combinadoLower = combinado.toLowerCase();
+        const faltan = itemsEntrada[i].numerosOriginales.filter(n => combinadoLower.indexOf(n.toLowerCase()) === -1);
         if (faltan.length) faltantesPorFila.push({ i, faltan });
       });
 
@@ -3042,8 +3393,9 @@ ${incluirReglaRiesgoOMS ? '\n7. Algunos pacientes incluyen al final de su nota u
         // Verificación final: si a pesar del reintento sigue faltando algo, se deja visible en la fila (no se pierde silenciosamente)
         let siguenFaltando = 0;
         filasResultado.forEach((cols, i) => {
-          const combinado = `${cols[2] || ''} ${cols[3] || ''}`;
-          const faltan = itemsEntrada[i].numerosOriginales.filter(n => combinado.indexOf(n) === -1);
+          const combinado = `${cols[2] || ''} ${cols[3] || ''}`.replace(/(\d),(\d)/g, '$1.$2');
+          const combinadoLower = combinado.toLowerCase();
+          const faltan = itemsEntrada[i].numerosOriginales.filter(n => combinadoLower.indexOf(n.toLowerCase()) === -1);
           if (faltan.length) {
             siguenFaltando++;
             cols[3] = `${cols[3] || ''} ⚠️ Verificar manualmente estos datos de la nota original: ${faltan.join(', ')}`;
@@ -3070,7 +3422,20 @@ ${incluirReglaRiesgoOMS ? '\n7. Algunos pacientes incluyen al final de su nota u
       return [encabezadoFinal, ...filasFinal].join('\n');
     }
 
-    const resultado = _asrArmarTablaFinal(encabezado, filasResultado, itemsEntrada);
+    // Guarda en cada <tr> de entrada el resultado recién generado (huella + columnas de la IA),
+    // para que la próxima vez que se presione "Generar" esa fila se reutilice sin gastar tokens.
+    itemsEntrada.forEach((item, i) => {
+      if (filasResultado[i]) {
+        item._fila.dataset.asrHuella = item._huella;
+        item._fila.dataset.asrCols = JSON.stringify(filasResultado[i]);
+      }
+    });
+
+    // Reconstruye el orden final combinando lo recién generado con lo que ya estaba en caché.
+    const filasIAFinal = filasParaMerge.map(f => f.fuente === 'cache' ? f.cols : JSON.parse(f.itemRef._fila.dataset.asrCols));
+    const itemsFinalParaFechas = filasParaMerge.map(f => ({ fecha: f.fecha, hora: f.hora, vivienda: f.vivienda }));
+
+    const resultado = _asrArmarTablaFinal(encabezado, filasIAFinal, itemsFinalParaFechas);
 
     ultimoTSVGenerado = resultado; // Guardar variable en memoria
     renderizarTablaResultado(resultado);
@@ -3099,6 +3464,7 @@ function renderizarTablaResultado(tsvData) {
 
   const edadesDetectadas = [];
   const idxEdad = encabezados.findIndex(h => h.trim().toLowerCase() === 'edad');
+  const idxHallazgos = encabezados.findIndex(h => h.trim().toLowerCase().indexOf('hallazgos') !== -1);
 
   for (let i = 1; i < lineas.length; i++) {
     if (lineas[i].trim() === '') continue;
@@ -3107,11 +3473,19 @@ function renderizarTablaResultado(tsvData) {
       const meses = _riesgoParsearEdadCampo(celdas[idxEdad].trim());
       if (meses != null) edadesDetectadas.push(meses);
     }
+    // Solo se muestra el botón de gráfica en filas donde SÍ hay una evaluación nutricional
+    // detectable (edad+sexo+peso/talla en menores, o peso+talla en adultos).
+    const tieneNutri = (idxEdad >= 0 && idxHallazgos >= 0)
+      ? !!_riesgoDatosGrafica(celdas[idxEdad] || '', celdas[idxHallazgos] || '')
+      : false;
     htmlTable += '<tr>';
     celdas.forEach((cell, idx) => {
       const textoLimpio = cell.trim().replace(/"/g, '&quot;');
       const etiqueta = (encabezados[idx] || '').trim().replace(/"/g, '&quot;');
-      htmlTable += `<td data-label="${etiqueta}"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorResultadoDebounced();">${textoLimpio}</textarea></td>`;
+      const botonNutri = (idx === idxHallazgos && tieneNutri)
+        ? '<button type="button" class="btn-grafica-nutri" title="Ver gráfica nutricional" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br>'
+        : '';
+      htmlTable += `<td data-label="${etiqueta}">${botonNutri}<textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorResultadoDebounced();">${textoLimpio}</textarea></td>`;
     });
     htmlTable += '</tr>';
   }
