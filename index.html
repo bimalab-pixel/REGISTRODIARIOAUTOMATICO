@@ -147,11 +147,57 @@
     }
     .modal-content h3 { font-size: 16px; margin-bottom: 8px; color: var(--primary); }
 
-    #modalGraficaNutriBox.fullscreen{
-      max-width:none !important; width:100vw; height:100vh; max-height:100vh;
-      border-radius:0; margin:0; overflow-y:auto;
-    }
-    #modalGraficaNutriBox.fullscreen #graficaNutriCanvas{ max-height:70vh; width:auto; margin:0 auto; }
+   /* Ajustes para el contenedor general del modal */
+#modalGraficaNutriBox {
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Gráfica adaptativa en el modal estándar */
+#graficaNutriCanvas {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 55vh;
+  display: block;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+/* Modo pantalla completa */
+#modalGraficaNutriBox.fullscreen {
+  max-width: none !important;
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  margin: 0;
+  overflow-y: auto;
+}
+
+#modalGraficaNutriBox.fullscreen #graficaNutriCanvas {
+  max-height: 65vh;
+  width: auto !important;
+  margin: 0 auto;
+}
+
+/* --- REGLA CLAVE: Ajuste especial para dispositivos en posición horizontal (Landscape) --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  #modalGraficaNutriBox {
+    max-height: 96vh;
+    padding: 12px;
+  }
+  
+  #graficaNutriCanvas {
+    max-height: 42vh !important; /* Limita la altura para que encaje con el título y botones */
+  }
+
+  #modalGraficaNutriBox.fullscreen #graficaNutriCanvas {
+    max-height: 55vh !important;
+  }
+}
     #btnFullscreenGrafica:hover{ background:#16a34a !important; color:#fff !important; border-color:#16a34a !important; }
 
     /* Botón de gráfica nutricional (dentro de la celda de Hallazgos) */
@@ -1000,12 +1046,15 @@
 </div>
 
 <div class="modal" id="modalGraficaNutri">
-  <div class="modal-content" id="modalGraficaNutriBox" style="max-width:560px; position:relative;">
+  <div class="modal-content" id="modalGraficaNutriBox">
     <button type="button" id="btnFullscreenGrafica" onclick="toggleFullscreenGrafica()" title="Ver en pantalla completa" style="position:absolute; top:.9rem; right:2.9rem; background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; border-radius:8px; width:30px; height:30px; font-size:1rem; cursor:pointer;">⛶</button>
     <h3 id="graficaNutriTitulo">📊 Evaluación Nutricional</h3>
     <div id="graficaNutriAvisoPrematuro" style="display:none; background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; border-radius:8px; padding:.5rem .7rem; margin-bottom:10px; font-size:.78rem; line-height:1.5;"></div>
     <div id="graficaNutriSelectorWrap" style="margin-bottom:10px;"></div>
-    <canvas id="graficaNutriCanvas" width="500" height="300" style="width:100%; height:auto; display:block; background:#fff; border:1px solid var(--border-color); border-radius:8px;"></canvas>
+    
+    <!-- Canvas actualizado con clases CSS fluidas -->
+    <canvas id="graficaNutriCanvas" width="500" height="300"></canvas>
+    
     <div id="graficaNutriResumen" style="margin-top:10px; font-size:13px; color:var(--text-main); line-height:1.5;"></div>
     <div style="text-align:right; margin-top:14px;">
       <button type="button" onclick="cerrarGraficaNutri()" style="background:#e2e8f0; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Cerrar</button>
