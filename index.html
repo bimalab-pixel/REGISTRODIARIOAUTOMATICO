@@ -2683,6 +2683,21 @@ function _riesgoDibujarEscalaIMCAdulto(canvas, imcValor) {
   [15, 18.5, 25, 30, 35, 40].forEach(function(v) { ctx.fillText(v, xPix(v), barY + barH + 24 * esc); });
 }
 
+// Muestra u oculta el botón 📊 de la tabla de captura (tablaEntrada) según si, con lo que
+// ya está escrito en Edad + Notas, hay datos suficientes para graficar (edad+sexo+peso/talla).
+// Se llama en cada oninput de esas dos columnas, así que el botón aparece/desaparece en vivo
+// mientras el promotor escribe, sin esperar a la IA ni a tener internet.
+function _actualizarBotonNutriEntrada(el) {
+  const fila = el.closest('tr');
+  if (!fila) return;
+  const textareas = fila.querySelectorAll('textarea');
+  const edad = (textareas[4] && textareas[4].value) || '';
+  const notas = (textareas[5] && textareas[5].value) || '';
+  const boton = fila.querySelector('.btn-grafica-nutri');
+  if (!boton) return;
+  boton.style.display = _riesgoDatosGrafica(edad, notas) ? '' : 'none';
+}
+
 let _riesgoGraficaDatosActual = null;
 
 // Se llama desde el botón 📊 de cada fila con datos nutricionales.
@@ -3009,8 +3024,8 @@ function agregarFilaEntrada(fecha, hora, vivienda = '', nombre = '', edad = '', 
     <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="hh:mm">${escapeHtml(hora)}</textarea></td>
     <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 31">${escapeHtml(vivienda)}</textarea></td>
     <td data-label="Nombre de la Persona"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Nombre completo">${escapeHtml(nombre)}</textarea></td>
-    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 35 años / 1 año 2 meses">${escapeHtml(edad)}</textarea></td>
-    <td data-label="Notas Rápidas / Hallazgos de Campo"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Describa notas de la visita...">${escapeHtml(notas)}</textarea></td>
+    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Ej: 35 años / 1 año 2 meses">${escapeHtml(edad)}</textarea></td>
+    <td data-label="Notas Rápidas / Hallazgos de Campo"><button type="button" class="btn-grafica-nutri" style="display:${_riesgoDatosGrafica(edad, notas) ? '' : 'none'};" title="Ver gráfica nutricional (con lo ya escrito, sin IA ni internet)" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Describa notas de la visita...">${escapeHtml(notas)}</textarea></td>
     <td data-label="Acción" style="text-align: center;"><button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button></td>
   `;
   tbody.appendChild(nuevaFila);
@@ -3187,8 +3202,8 @@ function agregarFilaEntradaSilenciosa(fecha, hora, vivienda, nombre, edad, notas
     <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="hh:mm">${escapeHtml(hora)}</textarea></td>
     <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 31">${escapeHtml(vivienda)}</textarea></td>
     <td data-label="Nombre de la Persona"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Nombre completo">${escapeHtml(nombre)}</textarea></td>
-    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 35 años / 1 año 2 meses">${escapeHtml(edad)}</textarea></td>
-    <td data-label="Notas Rápidas / Hallazgos de Campo"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Describa notas de la visita...">${escapeHtml(notas)}</textarea></td>
+    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Ej: 35 años / 1 año 2 meses">${escapeHtml(edad)}</textarea></td>
+    <td data-label="Notas Rápidas / Hallazgos de Campo"><button type="button" class="btn-grafica-nutri" style="display:${_riesgoDatosGrafica(edad, notas) ? '' : 'none'};" title="Ver gráfica nutricional (con lo ya escrito, sin IA ni internet)" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Describa notas de la visita...">${escapeHtml(notas)}</textarea></td>
     <td data-label="Acción" style="text-align: center;"><button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button></td>
   `;
   tbody.appendChild(nuevaFila);
@@ -3368,9 +3383,12 @@ async function generarInforme() {
     if (!(nombre || notas)) return; // fila vacía: se ignora, igual que antes
     tieneDatosTotales = true;
 
-    // Si esta fila ya se generó antes con exactamente los mismos datos (nombre/edad/notas
-    // sin cambios), se reutiliza el resultado guardado y NO se vuelve a mandar a la IA.
-    const huellaActual = JSON.stringify({ nombre, edad, notas });
+    // Si esta fila ya se generó antes con exactamente los mismos datos (nombre/edad/notas Y
+    // el mismo nivel de detalle), se reutiliza el resultado guardado y NO se vuelve a mandar
+    // a la IA. Si el nivel de detalle cambió (ej. de "Básico" a "Ampliado"), sí se vuelve a
+    // generar aunque nombre/edad/notas sigan iguales — antes esto no se detectaba porque el
+    // nivel de detalle no formaba parte de la huella de comparación.
+    const huellaActual = JSON.stringify({ nombre, edad, notas, modo });
     if (fila.dataset.asrHuella === huellaActual && fila.dataset.asrCols) {
       filasParaMerge.push({ fuente: 'cache', fecha, hora, vivienda, cols: JSON.parse(fila.dataset.asrCols) });
       return;
