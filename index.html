@@ -2712,8 +2712,14 @@ function abrirGraficaNutricional(btn) {
   const celdas = fila.querySelectorAll('textarea');
 
   const nombre = (idxNombre >= 0 && celdas[idxNombre]) ? celdas[idxNombre].value.trim() : 'Esta persona';
-  const edadTexto = (idxEdadL >= 0 && celdas[idxEdadL]) ? celdas[idxEdadL].value.trim() : '';
-  const hallazgosTexto = (idxHallazgosL >= 0 && celdas[idxHallazgosL]) ? celdas[idxHallazgosL].value.trim() : '';
+  // Si la fila viene de la tabla de Registro Oficial (generada por IA), preferimos la nota
+  // ORIGINAL que el promotor escribió (guardada en data-notas-original / data-edad-original),
+  // en vez del texto ya redactado por la IA. La IA a veces parafrasea sin repetir la palabra
+  // "niño"/"niña" (ej. "Se identificó un peso de 17 kg..."), y eso hacía que ya no se pudiera
+  // detectar el sexo y el botón/gráfica desaparecieran después de generar el informe.
+  const tieneOriginal = fila.dataset.notasOriginal !== undefined;
+  const edadTexto = tieneOriginal ? fila.dataset.edadOriginal : ((idxEdadL >= 0 && celdas[idxEdadL]) ? celdas[idxEdadL].value.trim() : '');
+  const hallazgosTexto = tieneOriginal ? fila.dataset.notasOriginal : ((idxHallazgosL >= 0 && celdas[idxHallazgosL]) ? celdas[idxHallazgosL].value.trim() : '');
 
   const datos = _riesgoDatosGrafica(edadTexto, hallazgosTexto);
   if (!datos) { alert('No se detectaron suficientes datos (edad, sexo, peso o talla) en esta fila para graficar.'); return; }
@@ -3390,7 +3396,7 @@ async function generarInforme() {
     // nivel de detalle no formaba parte de la huella de comparación.
     const huellaActual = JSON.stringify({ nombre, edad, notas, modo });
     if (fila.dataset.asrHuella === huellaActual && fila.dataset.asrCols) {
-      filasParaMerge.push({ fuente: 'cache', fecha, hora, vivienda, cols: JSON.parse(fila.dataset.asrCols) });
+      filasParaMerge.push({ fuente: 'cache', fecha, hora, vivienda, cols: JSON.parse(fila.dataset.asrCols), edadOriginal: edad, notasOriginal: notas });
       return;
     }
 
@@ -3433,7 +3439,7 @@ async function generarInforme() {
     };
     itemsEntrada.push(item);
     datosEntradaTexto += `${itemsEntrada.length}. Nombre: ${nombre || 'No especificado'} | Edad: ${edad || 'No especificada'} | Inicio obligatorio Hallazgos: "${aperturaHallazgos}" | Inicio obligatorio Acciones: "${aperturaAcciones}" | Notas: ${notas || 'Sin observaciones'}${etiquetaRiesgo ? ' ' + etiquetaRiesgo : ''}\n`;
-    filasParaMerge.push({ fuente: 'nueva', fecha, hora, vivienda, itemRef: item });
+    filasParaMerge.push({ fuente: 'nueva', fecha, hora, vivienda, itemRef: item, edadOriginal: edad, notasOriginal: notas });
   });
 
   if (!tieneDatosTotales) {
@@ -3732,7 +3738,8 @@ PROHIBIDO CALCULAR O CLASIFICAR TÚ MISMO EL IMC / ESTADO NUTRICIONAL (regla cr�
     const resultado = _asrArmarTablaFinal(encabezado, filasIAFinal, itemsFinalParaFechas);
 
     ultimoTSVGenerado = resultado; // Guardar variable en memoria
-    renderizarTablaResultado(resultado);
+    const datosOriginalesPorFila = filasParaMerge.map(f => ({ edad: f.edadOriginal, notas: f.notasOriginal }));
+    renderizarTablaResultado(resultado, datosOriginalesPorFila);
     localStorage.setItem('borrador_resultado_registros', resultado); // Autoguardar borrador
     mostrarAvisoBorrador();
     if (avisoDesajuste) alert('Registro generado.' + avisoDesajuste);
@@ -3742,7 +3749,7 @@ PROHIBIDO CALCULAR O CLASIFICAR TÚ MISMO EL IMC / ESTADO NUTRICIONAL (regla cr�
   }
 }
 
-function renderizarTablaResultado(tsvData) {
+function renderizarTablaResultado(tsvData, datosOriginalesPorFila) {
   const lineas = tsvData.split('\n');
   if (lineas.length === 0) return;
 
@@ -3767,12 +3774,19 @@ function renderizarTablaResultado(tsvData) {
       const meses = _riesgoParsearEdadCampo(celdas[idxEdad].trim());
       if (meses != null) edadesDetectadas.push(meses);
     }
+    // Datos ORIGINALES de esta fila (edad + nota tal como se escribieron, antes de la IA), si
+    // están disponibles. Se usan de preferencia porque la IA puede parafrasear la nota y perder
+    // palabras clave (ej. "niño"/"niña") que la IA no repite necesariamente en su redacción.
+    const original = (datosOriginalesPorFila && datosOriginalesPorFila[i - 1]) || null;
     // Solo se muestra el botón de gráfica en filas donde SÍ hay una evaluación nutricional
     // detectable (edad+sexo+peso/talla en menores, o peso+talla en adultos).
-    const tieneNutri = (idxEdad >= 0 && idxHallazgos >= 0)
-      ? !!_riesgoDatosGrafica(celdas[idxEdad] || '', celdas[idxHallazgos] || '')
-      : false;
-    htmlTable += '<tr>';
+    const tieneNutri = original
+      ? !!_riesgoDatosGrafica(original.edad || '', original.notas || '')
+      : ((idxEdad >= 0 && idxHallazgos >= 0) ? !!_riesgoDatosGrafica(celdas[idxEdad] || '', celdas[idxHallazgos] || '') : false);
+    const atributosOriginal = original
+      ? ` data-edad-original="${(original.edad || '').replace(/"/g, '&quot;')}" data-notas-original="${(original.notas || '').replace(/"/g, '&quot;')}"`
+      : '';
+    htmlTable += `<tr${atributosOriginal}>`;
     celdas.forEach((cell, idx) => {
       const textoLimpio = cell.trim().replace(/"/g, '&quot;');
       const etiqueta = (encabezados[idx] || '').trim().replace(/"/g, '&quot;');
