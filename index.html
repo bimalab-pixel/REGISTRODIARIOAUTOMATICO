@@ -1009,9 +1009,14 @@
     <div id="graficaNutriAvisoPrematuro" style="display:none; background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; border-radius:8px; padding:.5rem .7rem; margin-bottom:10px; font-size:.78rem; line-height:1.5;"></div>
     <div id="graficaNutriSelectorWrap" style="margin-bottom:10px;"></div>
     <canvas id="graficaNutriCanvas" width="500" height="300" style="width:100%; height:auto; display:block; background:#fff; border:1px solid var(--border-color); border-radius:8px;"></canvas>
-    <div id="graficaNutriResumen" style="margin-top:10px; font-size:13px; color:var(--text-main); line-height:1.5;"></div>
     <div style="text-align:right; margin-top:14px;">
       <button type="button" onclick="cerrarGraficaNutri()" style="background:#e2e8f0; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Cerrar</button>
+    </div>
+    <div style="margin-top:14px; border-top:1px solid var(--border-color); padding-top:12px;">
+      <button type="button" onclick="toggleGraficaResumen(this)" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-weight:600; font-size:13px; padding:0;">▼ Ver datos e interpretación</button>
+      <div id="graficaNutriResumenWrap" style="display:none; margin-top:10px; padding:12px; background:#f8fafc; border-radius:6px; border-left:4px solid var(--primary);">
+        <div id="graficaNutriResumen" style="font-size:13px; color:var(--text-main); line-height:1.6;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -2861,7 +2866,8 @@ function _riesgoActualizarGrafica(indicadorId) {
         </div>`;
     }
 
-    resumen.innerHTML = `<b>IMC:</b> ${item.valor} kg/m² — <b>${clasifAdulto}</b> (puntos de corte fijos de la OMS para adultos, no varían por edad).${tarjetaConsejoAdulto}`;
+    const imcFormato = _formatearNumeroLimpio(item.valor, 1);
+    resumen.innerHTML = `<b>IMC:</b> ${imcFormato} kg/m² — <b>${clasifAdulto}</b> (puntos de corte fijos de la OMS para adultos, no varían por edad).${tarjetaConsejoAdulto}`;
   } else {
     const r = _riesgoDibujarCurvaEdad(canvas, item.id, datos.edadMeses, datos.sexo, item.valor, datos.edadCronologica);
     if (r) {
@@ -2892,9 +2898,11 @@ function _riesgoActualizarGrafica(indicadorId) {
           </div>`;
       }
 
-      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${item.valor} ${r.unidad}${zTexto} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>
-        El punto azul marca a la persona; la etiqueta junto al punto muestra su valor y puntaje Z exactos. Categorías de este indicador:<br>
-        <div style="margin-top:4px;line-height:1.9;">${leyenda}</div>${tarjetaConsejo}`;
+      const valorFormato = _formatearNumeroLimpio(item.valor, 2);
+      const zFormato = r.z != null ? ` (Z ${r.z >= 0 ? '+' : ''}${_formatearNumeroLimpio(r.z, 2)} DE)` : '';
+      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${valorFormato} ${r.unidad}${zFormato} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>
+        <span style="font-size:12px;color:var(--text-muted);">El punto azul en la gráfica marca a la persona; la etiqueta junto al punto muestra su valor y puntaje Z exactos. Categorías de este indicador:</span><br>
+        <div style="margin-top:6px;line-height:1.9;">${leyenda}</div>${tarjetaConsejo}`;
     } else {
       resumen.innerHTML = 'No se pudo ubicar la edad dentro del rango de la tabla OMS correspondiente.';
     }
@@ -2903,6 +2911,21 @@ function _riesgoActualizarGrafica(indicadorId) {
 
 function cerrarGraficaNutri() {
   document.getElementById('modalGraficaNutri').style.display = 'none';
+}
+
+function toggleGraficaResumen(btn) {
+  const wrap = document.getElementById('graficaNutriResumenWrap');
+  const esAbierto = wrap.style.display !== 'none';
+  wrap.style.display = esAbierto ? 'none' : 'block';
+  btn.textContent = esAbierto ? '▶ Ver datos e interpretación' : '▼ Ver datos e interpretación';
+}
+
+// Función para formatear números evitando decimales excesivos por precisión flotante
+function _formatearNumeroLimpio(num, decimales = 2) {
+  if (num == null) return '';
+  // Redondear a la cantidad de decimales especificada para evitar errores de precisión flotante
+  const factor = Math.pow(10, decimales);
+  return (Math.round(num * factor) / factor).toString();
 }
 
 
