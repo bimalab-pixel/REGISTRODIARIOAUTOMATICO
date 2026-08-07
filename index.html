@@ -356,6 +356,31 @@
     .btn-delete:hover { filter: brightness(1.08); }
     .btn-delete:active { transform: translateY(3px); box-shadow: 0 0 0 var(--danger-dark); }
 
+    /* Botón para generar/mejorar con IA una sola fila del cuadro único */
+    .btn-generar-fila {
+      background: linear-gradient(180deg, var(--resultado-light), var(--resultado-color));
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      margin-right: 4px;
+      box-shadow: 0 3px 0 var(--resultado-dark), 0 4px 6px rgba(15,157,110,0.3);
+      transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+    }
+    .btn-generar-fila:hover { filter: brightness(1.08); }
+    .btn-generar-fila:active { transform: translateY(3px); box-shadow: 0 0 0 var(--resultado-dark); }
+
+    /* Marca visual de fila ya procesada (texto final en Hallazgos y Acciones) */
+    tr.fila-generada > td:first-child { box-shadow: inset 4px 0 0 var(--resultado-color); }
+    tr.fila-generada textarea { background: #f4fdf9; }
+
+    /* Separador visual entre las columnas "Hallazgos" y "Acciones Ejecutadas", que quedan
+       unidas bajo un mismo encabezado pero son dos campos independientes. */
+    #tablaEntrada td[data-label="Hallazgos"] { border-right: 2px solid #d1d5db; }
+
     .btn-add-row {
       background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary) 100%);
       color: white;
@@ -781,6 +806,9 @@
     color: #fff;
     font-weight: 700;
   }
+  .tabla-stats-edad .fila-total td {
+    color: #fff !important;
+  }
   .barra-stats {
     background: #e6ede9;
     border-radius: 4px;
@@ -808,13 +836,6 @@
     margin-bottom: 6px;
     height: 40px;
   }
-  @media print {
-    body * { visibility: hidden; }
-    #resultContainer, #resultContainer * { visibility: visible; }
-    #resultContainer { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none; }
-    .btn-group, #btnImprimirInforme { display: none !important; }
-    #tablaResultado textarea { border: none; resize: none; }
-  }
 </style>
 </head>
 <body>
@@ -828,7 +849,6 @@
       <p>Salud Comunitaria | Captura rápida y conversión a informe oficial en tabla</p>
     </div>
     <button class="btn-config" title="Configurar API Key" onclick="abrirModal()">⚙️</button>
-    <button class="btn-config" title="Guía del Usuario" onclick="abrirGuiaUsuario()" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">📘</button>
   </div>
 
   <button class="btn-instalar-app" id="btnInstalarApp" onclick="instalarApp()" style="display:none;">
@@ -850,17 +870,18 @@
       </select>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+    <div class="notas-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
       <label style="margin:0;">📝 Registro de Notas Rápidas de la Jornada:</label>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn-danger-sm" id="btn-toggle-pegar-tsv" onclick="toggleImportarTSV()" style="background:#0d9488;">📋 Pegar tabla del Registro Diario</button>
+        <button class="btn-danger-sm" style="background:#7c3aed; color:#fff; border-color:#7c3aed;" onclick="abrirGuiaUsuario()">📘 Guía del Usuario</button>
+        <button class="btn-danger-sm" id="btn-toggle-pegar-tsv" onclick="toggleImportarTSV()" style="background:#0d9488; color:#fff; border-color:#0d9488;">📋 Pegar tabla del Registro Diario</button>
         <button class="btn-danger-sm" onclick="limpiarNotasEntrada()">🧹 Limpiar Notas</button>
       </div>
     </div>
 
     <div id="panel-importar-tsv" style="display:none; margin-bottom:12px; padding:12px; border:1px solid #99f6e4; background:#f0fdfa; border-radius:10px;">
       <p style="font-size:12.5px; color:#0f766e; margin:0 0 8px;">
-        Pega aquí la tabla copiada con el botón "Copiar tabla" del Registro Diario (o del resultado ya generado en esta misma app). Se reconoce automáticamente el formato, con o sin encabezado.
+        Pega aquí la tabla copiada con el botón "Copiar Tabla para Excel" del Registro Diario (o de esta misma app). Se reconoce automáticamente el formato, con o sin encabezado.
       </p>
       <textarea id="textarea-importar-tsv" rows="4" style="width:100%; font-family:monospace; font-size:12.5px; padding:8px; border-radius:8px; border:1px solid #99f6e4;" placeholder="Pega aquí con Ctrl+V..."></textarea>
       <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
@@ -869,28 +890,34 @@
       </div>
     </div>
 
+    <div id="areaImprimir">
     <div class="table-container">
       <table id="tablaEntrada">
         <thead>
           <tr>
-            <th style="width: 9%;">Fecha</th>
-            <th style="width: 7%;">Hora</th>
-            <th style="width: 10%;">No. Vivienda</th>
-            <th style="width: 17%;">Nombre de la Persona</th>
-            <th style="width: 12%;">Edad</th>
-            <th style="width: 36%;">Notas Rápidas / Hallazgos de Campo</th>
-            <th style="width: 9%; text-align: center;">Acción</th>
+            <th style="width: 7%;">Fecha</th>
+            <th style="width: 7%;">No. Viv.</th>
+            <th style="width: 6%;">Hora</th>
+            <th style="width: 13%;">Nombre del Usuario</th>
+            <th style="width: 8%;">Edad</th>
+            <th style="width: 21%;">Hallazgos</th>
+            <th style="width: 21%;">Acciones Ejecutadas, Consejería y Acuerdos</th>
+            <th style="width: 13%; text-align: center;">Acción</th>
           </tr>
         </thead>
         <tbody id="tbodyEntradaInicial">
           <tr>
-            <td data-label="Fecha"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="dd/mm/aaaa"></textarea></td>
-            <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="hh:mm"></textarea></td>
-            <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 31"></textarea></td>
-            <td data-label="Nombre de la Persona"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: Juan Pérez"></textarea></td>
-            <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 35 años"></textarea></td>
-            <td data-label="Notas Rápidas / Hallazgos de Campo"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Describa notas de la visita..."></textarea></td>
-            <td data-label="Acción" style="text-align: center;"><button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button></td>
+            <td data-label="Fecha"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder=""></textarea></td>
+            <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder=""></textarea></td>
+            <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder=""></textarea></td>
+            <td data-label="Nombre del Usuario"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder=""></textarea></td>
+            <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this); actualizarEstadisticasDesdeTabla();" placeholder=""></textarea></td>
+            <td data-label="Hallazgos"><button type="button" class="btn-grafica-nutri" style="display:none;" title="Ver gráfica nutricional (con lo ya escrito, sin IA ni internet)" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this); _marcarFilaEditada(this);" placeholder=""></textarea></td>
+            <td data-label="Acciones Ejecutadas, Consejería y Acuerdos"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this); _marcarFilaEditada(this);" placeholder=""></textarea></td>
+            <td data-label="Acción" style="text-align: center; white-space: nowrap;">
+              <button type="button" class="btn-generar-fila" title="Generar/mejorar solo esta fila con IA" onclick="generarFilaIndividual(this)">✨ IA</button>
+              <button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -900,50 +927,15 @@
       ➕ Agregar Nuevo Paciente a la Lista
     </button>
 
-    <button class="btn-save-notas" onclick="guardarNotasEnHistorial()">
-      💾 Guardar Notas en Historial Diario
-    </button>
-
     <button class="btn-submit" onclick="generarInforme()">
-      <span>✨ Generar Registro Oficial en Tabla</span>
+      <span>✨ Generar con IA (Lote)</span>
     </button>
 
     <div class="borrador-aviso" id="avisoBorrador">💾 Borrador guardado automáticamente en este dispositivo</div>
-  </div>
+    <div class="borrador-aviso" id="avisoEstadoIA" style="background:#eff6ff; color:#1e3a8a; border-color:#bfdbfe;"></div>
 
-  <!-- SECCIÓN HISTORIAL DE NOTAS DIARIAS (guardado local del borrador de campo) -->
-  <div class="card card-historial-notas">
-    <span class="section-tag tag-notashist">🟦 Respaldo diario</span>
-    <button class="btn-toggle-notashist" onclick="toggleHistorialNotas()" id="btnToggleHistorialNotas">
-      <span>🗂️ Ver Historial de Notas Guardadas <span class="badge-contador badge-notas" id="contadorHistorialNotas">0</span></span>
-      <span id="flechaHistorialNotas">▼</span>
-    </button>
-
-    <div id="listaHistorialNotas" style="display:none;">
-      <div style="display:flex; justify-content:flex-end; margin: 14px 0 10px;">
-        <button class="btn-danger-sm" onclick="vaciarHistorialNotas()" title="Vaciar todo el historial de notas">🗑️ Vaciar Todo</button>
-      </div>
-      <div id="contenidoHistorialNotas">
-        <p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No hay notas guardadas en el historial aún.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECCIÓN DE RESULTADOS -->
-  <div class="card card-resultado output-card" id="resultContainer">
-    <span class="section-tag tag-resultado">🟢 Informe final</span>
-    <div class="output-header">
-      <h3>📊 Registro Oficial Generado <span class="badge-status">Formato Formal Completo</span></h3>
-      <div class="btn-group">
-        <button class="btn-save-historial" onclick="guardarEnHistorial()">💾 Guardar en Historial</button>
-        <button class="btn-copy" onclick="copiarAlPortapapeles()">📋 Copiar Tabla para Excel</button>
-        <button class="btn-copy" onclick="window.print()" id="btnImprimirInforme" style="display:none;">🖨️ Imprimir</button>
-      </div>
-    </div>
-
-    <div class="table-container" id="tableContainer"></div>
     <div id="statsEdadContainer"></div>
-    <div class="firmas-wrap" id="firmasContainer" style="display:none;">
+    <div class="firmas-wrap" id="firmasContainer" style="display:flex;">
       <div class="firma-box">
         <div class="firma-linea"></div>
         <div>Firma del Promotor de Salud</div>
@@ -953,13 +945,19 @@
         <div>Firma del Supervisor / Jefe de UDS</div>
       </div>
     </div>
+    </div>
+
+    <div class="btn-group" style="margin-top:14px;">
+      <button class="btn-save-historial" onclick="guardarEnHistorial()">💾 Guardar Cuadro en Historial</button>
+      <button class="btn-copy" onclick="copiarAlPortapapeles()">📋 Copiar Tabla para Excel</button>
+    </div>
   </div>
 
-  <!-- SECCIÓN HISTORIAL LOCAL -->
+  <!-- SECCIÓN HISTORIAL LOCAL (cuadros guardados, con o sin IA) -->
   <div class="card card-historial-informes historial-card">
-    <span class="section-tag tag-historial">🟣 Informes guardados</span>
+    <span class="section-tag tag-historial">🟣 Cuadros guardados</span>
     <button class="btn-toggle-historial" onclick="toggleHistorial()" id="btnToggleHistorial">
-      <span>🗂️ Ver Historial de Informes Guardados <span class="badge-contador badge-informes" id="contadorHistorial">0</span></span>
+      <span>🗂️ Ver Historial Guardado <span class="badge-contador badge-informes" id="contadorHistorial">0</span></span>
       <span id="flechaHistorial">▼</span>
     </button>
 
@@ -1010,74 +1008,67 @@
     <div id="graficaNutriAvisoPrematuro" style="display:none; background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; border-radius:8px; padding:.5rem .7rem; margin-bottom:10px; font-size:.78rem; line-height:1.5;"></div>
     <div id="graficaNutriSelectorWrap" style="margin-bottom:10px;"></div>
     <canvas id="graficaNutriCanvas" width="500" height="300" style="width:100%; height:auto; display:block; background:#fff; border:1px solid var(--border-color); border-radius:8px;"></canvas>
+    <div id="graficaNutriResumen" style="margin-top:10px; font-size:13px; color:var(--text-main); line-height:1.5;"></div>
     <div style="text-align:right; margin-top:14px;">
       <button type="button" onclick="cerrarGraficaNutri()" style="background:#e2e8f0; border:none; padding:8px 15px; border-radius:6px; cursor:pointer;">Cerrar</button>
-    </div>
-    <div style="margin-top:14px; border-top:1px solid var(--border-color); padding-top:12px;">
-      <button type="button" onclick="toggleGraficaResumen(this)" style="background:transparent; border:none; color:var(--primary); cursor:pointer; font-weight:600; font-size:13px; padding:0;">▼ Ver datos e interpretación</button>
-      <div id="graficaNutriResumenWrap" style="display:none; margin-top:10px; padding:12px; background:#f8fafc; border-radius:6px; border-left:4px solid var(--primary);">
-        <div id="graficaNutriResumen" style="font-size:13px; color:var(--text-main); line-height:1.6;"></div>
-      </div>
     </div>
   </div>
 </div>
 
-<!-- MODAL: GUÍA DEL USUARIO -->
-<div class="modal" id="modalGuiaUsuario" style="display:none; z-index:9999;">
-  <div class="modal-content" style="max-width:600px; max-height:80vh; overflow-y:auto;">
-    <h3 style="margin-top:0;">📘 Guía del Usuario</h3>
-    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
-      Cómo llenar la tabla de captura rápida para que el sistema genere el informe profesional correctamente.
+<div class="modal" id="modalGuiaUsuario">
+  <div class="modal-content" style="max-width:620px; text-align:left;">
+    <h3>📘 Guía del Usuario</h3>
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
+      Cómo llenar cada columna del cuadro, y qué escribir para que la gráfica nutricional (📊) funcione.
     </p>
 
-    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 8px;">📅 Fecha, Hora y No. Vivienda</h4>
+    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 6px;">📅 Fecha, No. Vivienda y Hora</h4>
     <p style="font-size:13px; line-height:1.6; margin:0;">
       Fecha en formato <b>dd/mm/aaaa</b> (ej. 06/08/2026). Hora en formato <b>hh:mm</b> (ej. 14:30). El número de vivienda es el que usas en tu croquis o mapa sanitario.
     </p>
 
-    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 8px;">👤 Nombre de la Persona</h4>
+    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 6px;">👤 Nombre del Usuario</h4>
     <p style="font-size:13px; line-height:1.6; margin:0;">
       Nombre completo de la persona atendida.
     </p>
 
-    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 8px;">🎂 Edad</h4>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 8px;">
-      Escribe siempre número + unidad:
+    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 6px;">🎂 Edad</h4>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 6px;">
+      Escribe siempre número + unidad, así el sistema calcula bien las estadísticas y la gráfica:
     </p>
-    <ul style="font-size:13px; line-height:1.7; margin:0 0 8px; padding-left:20px;">
-      <li>Adultos y niños: <b>"35 años"</b>, <b>"12 años"</b> (forma corta: "35a")</li>
-      <li>Bebés: <b>"1 año 2 meses"</b>, <b>"8 meses"</b> (forma corta: "8m")</li>
+    <ul style="font-size:13px; line-height:1.7; margin:0 0 6px; padding-left:20px;">
+      <li>Adultos y niños mayores: <b>"35 años"</b>, <b>"12 años"</b> (también sirve la forma corta "35a")</li>
+      <li>Bebés y niños pequeños: <b>"1 año 2 meses"</b>, <b>"8 meses"</b> (también sirve "8m")</li>
       <li>Recién nacidos: <b>"15 días"</b></li>
-      <li>Si nació prematuro, menciónalo en Notas: <b>"nació a las 32 semanas"</b> — el sistema ajusta automáticamente la edad.</li>
+      <li>Si nació prematuro, menciónalo en Hallazgos: <b>"nació a las 32 semanas"</b> o <b>"prematuro de 30 semanas"</b> — el sistema ajusta automáticamente la edad para la gráfica.</li>
     </ul>
 
-    <h4 style="font-size:14px; color:var(--resultado-color); margin:18px 0 8px; border-top:1px solid var(--border-color); padding-top:14px;">📊 Notas Rápidas (Cómo activar la gráfica nutricional)</h4>
-    <p style="font-size:13px; line-height:1.6; margin:0 0 10px;">
-      El botón "📊 Gráfica" aparece automáticamente cuando detecta datos suficientes en Notas. Usa estas palabras clave:
-    </p>
-    <ul style="font-size:13px; line-height:1.8; margin:0 0 12px; padding-left:20px;">
-      <li><b>Sexo (menores)</b>: "niño" / "niña", "masculino" / "femenino", "varón" / "mujer"</li>
-      <li><b>Peso:</b> <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">59.5 kg</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">59. 5 kg</code> <span style="font-weight:bold; color:#166534;">(tolera espacios!)</span>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">pesa 59.5</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">peso: 59.5</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">se toma peso 59.5 kg</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">psa: 59.5</code>, o libras: <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">110 libras</code></li>
-      <li><b>Talla:</b> <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">139 cm</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">1.39 m</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">1. 39 m</code> <span style="font-weight:bold; color:#166534;">(tolera espacios!)</span>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">mide 139</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">se toma talla 139 cm</code>, <code style="background:#dcfce7; padding:2px 4px; border-radius:3px;">tal: 139</code></li>
-      <li><b>Adultos:</b> peso + talla = IMC automático (no necesita sexo)</li>
-    </ul>
-    <p style="font-size:13px; line-height:1.6; margin:0; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px;">
-      💡 <b>Ejemplo:</b> <i>"Se identificó niña de 3 años con un peso de 13 kg y una talla de 90 cm"</i> — el sistema dibuja la gráfica OMS sin internet ni IA. También funciona con espacios: <i>"peso de 13 . 5 kg"</i> o <i>"talla de 1 . 50 m"</i>.
-    </p>
-
-    <h4 style="font-size:14px; color:var(--primary); margin:18px 0 8px;">✨ Generar con IA</h4>
+    <h4 style="font-size:14px; color:var(--primary); margin:16px 0 6px;">📝 Hallazgos / ✅ Acciones Ejecutadas</h4>
     <p style="font-size:13px; line-height:1.6; margin:0;">
-      Escribe la idea básica en Notas (lo que observaste) y presiona "✨ Generar Informe Profesional". La IA redacta el texto en formato oficial completo en los campos de la tabla final.
+      Escribe con tus propias palabras lo que observaste y lo que hiciste durante la visita. Puedes dejarlo así (sin IA) o presionar "✨ Generar con IA" para que se redacte en formato formal — la IA siempre toma como base lo que ya escribiste aquí.
     </p>
 
-    <div style="text-align:right; margin-top:20px;">
-      <button type="button" onclick="cerrarGuiaUsuario()" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:600;">Entendido</button>
+    <h4 style="font-size:14px; color:var(--resultado-color); margin:18px 0 6px; border-top:1px solid var(--border-color); padding-top:14px;">📊 Cómo activar la gráfica nutricional</h4>
+    <p style="font-size:13px; line-height:1.6; margin:0 0 8px;">
+      El botón "📊 Gráfica" aparece automáticamente en la fila cuando detecta suficientes datos escritos en <b>Hallazgos</b> (o en Edad). Usa estas palabras clave:
+    </p>
+    <ul style="font-size:13px; line-height:1.8; margin:0 0 8px; padding-left:20px;">
+      <li><b>Sexo</b> (en menores de edad): usa "niño" / "niña", o "masculino" / "femenino", o "varón" / "mujer". Ejemplo: <i>"Se evaluó a la niña..."</i></li>
+      <li><b>Peso</b>: número + "kg" (ej. <i>"peso de 16 kg"</i>, "16.5kg", "59. 5 kg" — <b>tolera espacios</b>), <code>pesa 16</code>, <code>se toma peso 16</code>, <code>psa: 16</code>/<code>pso: 16</code>, o + "libras"/"lbs" si tu báscula es en libras. También funciona solo con la palabra "peso": <i>"peso: 65"</i>, "pesa 65".</li>
+      <li><b>Talla / estatura</b>: número + "cm" (ej. <i>"talla de 108 cm"</i>) o en metros (ej. "1.08 m", "1. 08 m" — <b>tolera espacios</b>, "1.08 mts"). También funciona con "mide", "talla", "estatura", "altura" sin unidad: <i>"mide 170"</i>, "se toma talla 108", "tal: 108", "t.: 108".</li>
+      <li><b>Adultos</b>: con peso y talla es suficiente para calcular el IMC; no hace falta especificar sexo.</li>
+    </ul>
+    <p style="font-size:13px; line-height:1.6; margin:0; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 10px;">
+      💡 Ejemplo completo: <i>"Se identificó niña de 3 años con un peso de 13 kg y una talla de 90 cm"</i> — con eso el sistema ya puede dibujar la gráfica OMS y clasificar el estado nutricional, sin necesidad de internet ni de generar con IA. También funciona con espacios: <i>"peso de 13 . 5 kg"</i> o <i>"talla de 1 . 50 m"</i>.
+    </p>
+
+    <div style="text-align:right; margin-top:18px;">
+      <button type="button" onclick="cerrarGuiaUsuario()" style="background:var(--primary); color:white; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; font-weight:600;">Entendido</button>
     </div>
   </div>
 </div>
 
 <script>
-let ultimoTSVGenerado = ""; // Almacena temporalmente la última tabla procesada
 
 /* ===================== CONFIGURACIÓN DE PROVEEDORES DE IA (GRATIS) =====================
    Cada proveedor guarda su propia clave y modelo en localStorage, bajo llaves distintas,
@@ -2756,7 +2747,15 @@ function _riesgoObtenerConsejoAdulto(clasificacionTexto) {
   return _riesgoConsejosAdulto[clasificacionTexto] || null;
 }
 
+// Redondea a máximo 2 decimales y quita ceros sobrantes, para nunca mostrar basura de coma
+// flotante (ej. 1.10 * 100 puede dar 110.00000000000001 en JavaScript).
+function _riesgoFormatearValor(v) {
+  if (v == null || isNaN(v)) return v;
+  return Number(v.toFixed(2));
+}
+
 function _riesgoDibujarCurvaEdad(canvas, indicador, edadMesesPersona, sexo, valorPersona, edadCronologica = null) {
+  valorPersona = _riesgoFormatearValor(valorPersona);
   const info = _riesgoTablaIndicador(indicador, edadMesesPersona, sexo);
   if (!info) return null;
   const tabla = info.tabla, mesInicio = info.mesInicio;
@@ -2952,7 +2951,7 @@ function _actualizarBotonNutriEntrada(el) {
   const textareas = fila.querySelectorAll('textarea');
   const nombreFila = (textareas[3] && textareas[3].value) || '';
   const edad = (textareas[4] && textareas[4].value) || '';
-  const notas = (textareas[5] && textareas[5].value) || '';
+  const notas = [(textareas[5] && textareas[5].value) || '', (textareas[6] && textareas[6].value) || ''].filter(Boolean).join(' ');
   const boton = fila.querySelector('.btn-grafica-nutri');
   if (!boton) return;
   boton.style.display = _riesgoDatosGrafica(edad, notas, nombreFila) ? '' : 'none';
@@ -2996,23 +2995,20 @@ function _riesgoFormatearEdad(edadMeses, edadCronologica = null) {
 
 function abrirGraficaNutricional(btn) {
   const fila = btn.closest('tr');
-  const tabla = fila ? fila.closest('table') : null;
-  if (!fila || !tabla) return;
-  const ths = Array.prototype.slice.call(tabla.querySelectorAll('thead th')).map(function(th) { return th.textContent.trim().toLowerCase(); });
-  const idxNombre = ths.findIndex(function(h) { return h.indexOf('nombre') !== -1; });
-  const idxEdadL = ths.findIndex(function(h) { return h === 'edad'; });
-  const idxHallazgosL = ths.findIndex(function(h) { return h.indexOf('hallazgos') !== -1; });
+  if (!fila) return;
+  // Índices fijos de la tabla única: 0 Fecha, 1 No.Vivienda, 2 Hora, 3 Nombre, 4 Edad,
+  // 5 Hallazgos, 6 Acciones Ejecutadas, (7 son los botones de Acción, sin textarea).
   const celdas = fila.querySelectorAll('textarea');
 
-  const nombre = (idxNombre >= 0 && celdas[idxNombre]) ? celdas[idxNombre].value.trim() : 'Esta persona';
-  // Si la fila viene de la tabla de Registro Oficial (generada por IA), preferimos la nota
-  // ORIGINAL que el promotor escribió (guardada en data-notas-original / data-edad-original),
-  // en vez del texto ya redactado por la IA. La IA a veces parafrasea sin repetir la palabra
-  // "niño"/"niña" (ej. "Se identificó un peso de 17 kg..."), y eso hacía que ya no se pudiera
-  // detectar el sexo y el botón/gráfica desaparecieran después de generar el informe.
+  const nombre = (celdas[3] && celdas[3].value.trim()) || 'Esta persona';
+  // Si la fila ya fue generada por la IA, preferimos la nota ORIGINAL que el promotor escribió
+  // (guardada en data-notas-original / data-edad-original), en vez del texto ya redactado por
+  // la IA. La IA a veces parafrasea sin repetir la palabra "niño"/"niña" (ej. "Se identificó un
+  // peso de 17 kg..."), y eso hacía que ya no se pudiera detectar el sexo y el botón/gráfica
+  // desaparecieran después de generar el informe.
   const tieneOriginal = fila.dataset.notasOriginal !== undefined;
-  const edadTexto = tieneOriginal ? fila.dataset.edadOriginal : ((idxEdadL >= 0 && celdas[idxEdadL]) ? celdas[idxEdadL].value.trim() : '');
-  const hallazgosTexto = tieneOriginal ? fila.dataset.notasOriginal : ((idxHallazgosL >= 0 && celdas[idxHallazgosL]) ? celdas[idxHallazgosL].value.trim() : '');
+  const edadTexto = tieneOriginal ? fila.dataset.edadOriginal : ((celdas[4] && celdas[4].value.trim()) || '');
+  const hallazgosTexto = tieneOriginal ? fila.dataset.notasOriginal : [(celdas[5] && celdas[5].value.trim()) || '', (celdas[6] && celdas[6].value.trim()) || ''].filter(Boolean).join(' ');
 
   const datos = _riesgoDatosGrafica(edadTexto, hallazgosTexto, nombre);
   if (!datos) { alert('No se detectaron suficientes datos (edad, sexo, peso o talla) en esta fila para graficar.'); return; }
@@ -3090,6 +3086,7 @@ function _riesgoActualizarGrafica(indicadorId) {
   if (!datos) return;
   _riesgoGraficaIndicadorActual = indicadorId;
   const item = datos.disponibles.find(function(d) { return d.id === indicadorId; }) || datos.disponibles[0];
+  if (item && item.valor != null) item.valor = _riesgoFormatearValor(item.valor);
   const canvas = document.getElementById('graficaNutriCanvas');
   const resumen = document.getElementById('graficaNutriResumen');
 
@@ -3118,8 +3115,7 @@ function _riesgoActualizarGrafica(indicadorId) {
         </div>`;
     }
 
-    const imcFormato = _formatearNumeroLimpio(item.valor, 1);
-    resumen.innerHTML = `<b>IMC:</b> ${imcFormato} kg/m² — <b>${clasifAdulto}</b> (puntos de corte fijos de la OMS para adultos, no varían por edad).${tarjetaConsejoAdulto}`;
+    resumen.innerHTML = `<b>IMC:</b> ${item.valor} kg/m² — <b>${clasifAdulto}</b> (puntos de corte fijos de la OMS para adultos, no varían por edad).${tarjetaConsejoAdulto}`;
   } else {
     const r = _riesgoDibujarCurvaEdad(canvas, item.id, datos.edadMeses, datos.sexo, item.valor, datos.edadCronologica);
     if (r) {
@@ -3150,11 +3146,9 @@ function _riesgoActualizarGrafica(indicadorId) {
           </div>`;
       }
 
-      const valorFormato = _formatearNumeroLimpio(item.valor, 2);
-      const zFormato = r.z != null ? ` (Z ${r.z >= 0 ? '+' : ''}${_formatearNumeroLimpio(r.z, 2)} DE)` : '';
-      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${valorFormato} ${r.unidad}${zFormato} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>
-        <span style="font-size:12px;color:var(--text-muted);">El punto azul en la gráfica marca a la persona; la etiqueta junto al punto muestra su valor y puntaje Z exactos. Categorías de este indicador:</span><br>
-        <div style="margin-top:6px;line-height:1.9;">${leyenda}</div>${tarjetaConsejo}`;
+      resumen.innerHTML = `<b>${item.etiqueta}:</b> ${item.valor} ${r.unidad}${zTexto} — <b>${r.clasificacion || 'sin clasificar'}</b>.<br>
+        El punto azul marca a la persona; la etiqueta junto al punto muestra su valor y puntaje Z exactos. Categorías de este indicador:<br>
+        <div style="margin-top:4px;line-height:1.9;">${leyenda}</div>${tarjetaConsejo}`;
     } else {
       resumen.innerHTML = 'No se pudo ubicar la edad dentro del rango de la tabla OMS correspondiente.';
     }
@@ -3163,21 +3157,6 @@ function _riesgoActualizarGrafica(indicadorId) {
 
 function cerrarGraficaNutri() {
   document.getElementById('modalGraficaNutri').style.display = 'none';
-}
-
-function toggleGraficaResumen(btn) {
-  const wrap = document.getElementById('graficaNutriResumenWrap');
-  const esAbierto = wrap.style.display !== 'none';
-  wrap.style.display = esAbierto ? 'none' : 'block';
-  btn.textContent = esAbierto ? '▶ Ver datos e interpretación' : '▼ Ver datos e interpretación';
-}
-
-// Función para formatear números evitando decimales excesivos por precisión flotante
-function _formatearNumeroLimpio(num, decimales = 2) {
-  if (num == null) return '';
-  // Redondear a la cantidad de decimales especificada para evitar errores de precisión flotante
-  const factor = Math.pow(10, decimales);
-  return (Math.round(num * factor) / factor).toString();
 }
 
 
@@ -3232,11 +3211,10 @@ window.onload = function() {
   if (!claveGuardada) {
     abrirModal();
   }
-  restaurarBorradorEntrada(); // Si había notas sin procesar, se recuperan
-  restaurarBorradorResultado(); // Si había un resultado sin guardar en el historial, se recupera
+  restaurarBorradorEntrada(); // Si había un cuadro sin guardar, se recupera
   document.querySelectorAll('textarea').forEach(autoAjustarTexto);
+  actualizarEstadisticasDesdeTabla();
   cargarHistorialUI();
-  cargarHistorialNotasUI();
 };
 
 function autoAjustarTexto(elemento) {
@@ -3263,15 +3241,6 @@ function abrirGuiaUsuario() {
 
 function cerrarGuiaUsuario() {
   document.getElementById('modalGuiaUsuario').style.display = 'none';
-}
-
-// Cerrar modales al hacer click fuera de ellos
-window.onclick = function(event) {
-  const configModal = document.getElementById('configModal');
-  const guiaModal = document.getElementById('modalGuiaUsuario');
-  
-  if (event.target === configModal) configModal.style.display = 'none';
-  if (event.target === guiaModal) guiaModal.style.display = 'none';
 }
 
 // Se ejecuta al abrir el modal y cada vez que el usuario cambia de proveedor en el selector:
@@ -3353,22 +3322,36 @@ function _asrFechaHoraActual() {
   };
 }
 
-function agregarFilaEntrada(fecha, hora, vivienda = '', nombre = '', edad = '', notas = '') {
+// Plantilla compartida de una fila del cuadro único (usada al agregar filas nuevas,
+// al restaurar el borrador, al importar TSV pegado y al cargar el historial guardado).
+// Orden de columnas: Fecha, No. Vivienda, Hora, Nombre, Edad, Hallazgos, Acciones Ejecutadas, Acción.
+// "Hallazgos" y "Acciones Ejecutadas" son dos columnas separadas, unidas bajo el mismo
+// encabezado "Hallazgos y Acciones Ejecutadas" (igual que en el cuadro oficial en papel).
+function _asrFilaHTML(fecha, hora, vivienda, nombre, edad, hallazgos, acciones) {
+  const notasCombinadas = [hallazgos, acciones].filter(Boolean).join(' ');
+  return `
+    <td data-label="Fecha"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="">${escapeHtml(fecha)}</textarea></td>
+    <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="">${escapeHtml(vivienda)}</textarea></td>
+    <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="">${escapeHtml(hora)}</textarea></td>
+    <td data-label="Nombre del Usuario"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="">${escapeHtml(nombre)}</textarea></td>
+    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this); actualizarEstadisticasDesdeTabla();" placeholder="">${escapeHtml(edad)}</textarea></td>
+    <td data-label="Hallazgos"><button type="button" class="btn-grafica-nutri" style="display:${_riesgoDatosGrafica(edad, notasCombinadas, nombre) ? '' : 'none'};" title="Ver gráfica nutricional (con lo ya escrito, sin IA ni internet)" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this); _marcarFilaEditada(this);" placeholder="">${escapeHtml(hallazgos)}</textarea></td>
+    <td data-label="Acciones Ejecutadas, Consejería y Acuerdos"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this); _marcarFilaEditada(this);" placeholder="">${escapeHtml(acciones)}</textarea></td>
+    <td data-label="Acción" style="text-align: center; white-space: nowrap;">
+      <button type="button" class="btn-generar-fila" title="Generar/mejorar solo esta fila con IA" onclick="generarFilaIndividual(this)">✨ IA</button>
+      <button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button>
+    </td>
+  `;
+}
+
+function agregarFilaEntrada(fecha, hora, vivienda = '', nombre = '', edad = '', hallazgos = '', acciones = '') {
   if (fecha === undefined) { const fh = _asrFechaHoraActual(); fecha = fh.fecha; hora = fh.hora; }
   const tbody = document.querySelector('#tablaEntrada tbody');
   const nuevaFila = document.createElement('tr');
-  nuevaFila.innerHTML = `
-    <td data-label="Fecha"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="dd/mm/aaaa">${escapeHtml(fecha)}</textarea></td>
-    <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="hh:mm">${escapeHtml(hora)}</textarea></td>
-    <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 31">${escapeHtml(vivienda)}</textarea></td>
-    <td data-label="Nombre de la Persona"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Nombre completo">${escapeHtml(nombre)}</textarea></td>
-    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Ej: 35 años / 1 año 2 meses">${escapeHtml(edad)}</textarea></td>
-    <td data-label="Notas Rápidas / Hallazgos de Campo"><button type="button" class="btn-grafica-nutri" style="display:${_riesgoDatosGrafica(edad, notas, nombre) ? '' : 'none'};" title="Ver gráfica nutricional (con lo ya escrito, sin IA ni internet)" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Describa notas de la visita...">${escapeHtml(notas)}</textarea></td>
-    <td data-label="Acción" style="text-align: center;"><button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button></td>
-  `;
+  nuevaFila.innerHTML = _asrFilaHTML(fecha, hora, vivienda, nombre, edad, hallazgos, acciones);
   tbody.appendChild(nuevaFila);
   const primerArea = nuevaFila.querySelector('textarea');
-  if (!vivienda && !nombre && !edad && !notas) {
+  if (!vivienda && !nombre && !edad && !hallazgos && !acciones) {
     const campoNombre = nuevaFila.querySelectorAll('textarea')[3];
     if (campoNombre) campoNombre.focus();
   }
@@ -3386,6 +3369,7 @@ function eliminarFilaEntrada(btn) {
     alert('Debe haber al menos un paciente.');
   }
   guardarBorradorEntrada();
+  actualizarEstadisticasDesdeTabla();
 }
 
 /* ===================== IMPORTAR TABLA TSV PEGADA (desde el Registro Diario u otra fuente) ===================== */
@@ -3402,8 +3386,9 @@ function toggleImportarTSV() {
 }
 
 // Reconoce varios formatos de TSV pegado:
-// - 7 columnas: Fecha, Hora, No. Vivienda, Nombre, Edad, Hallazgos, Acciones Ejecutadas (export del Registro Diario)
-// - 4 columnas: Nombre, Edad, Hallazgos, Acciones (formato de salida de esta misma app)
+// - 7 columnas: Fecha, Hora/No.Vivienda, No.Vivienda/Hora, Nombre, Edad, Hallazgos, Acciones Ejecutadas
+//   (export del Registro Diario, o de esta misma app)
+// - 4 columnas: Nombre, Edad, Hallazgos, Acciones (formato de salida anterior de esta misma app)
 // - 2-3 columnas: Nombre, Edad, Notas (formato nativo de esta tabla de entrada)
 function _asrParsearTSVPegado(texto) {
   const lineas = texto.split(/\r\n|\r|\n/).filter(l => l.trim() !== '');
@@ -3414,6 +3399,12 @@ function _asrParsearTSVPegado(texto) {
   const pareceEncabezado = primeraCols.some(c => c.includes('nombre')) ||
     primeraCols.some(c => c.includes('fecha')) ||
     primeraCols.some(c => c.includes('hallazgo'));
+  // Si el encabezado trae "Hora" antes que "No. Vivienda" (formato del Registro Diario), se
+  // respeta ese orden de columnas; si no, se asume el orden nativo de esta app (Vivienda antes
+  // que Hora).
+  const horaAntesDeVivienda = pareceEncabezado && primeraCols.findIndex(c => c.includes('hora')) >= 0 &&
+    primeraCols.findIndex(c => c.includes('vivienda')) >= 0 &&
+    primeraCols.findIndex(c => c.includes('hora')) < primeraCols.findIndex(c => c.includes('vivienda'));
   if (pareceEncabezado) inicio = 1;
 
   const filas = [];
@@ -3421,29 +3412,31 @@ function _asrParsearTSVPegado(texto) {
     const cols = lineas[i].split('\t');
     if (cols.length < 2) continue;
 
-    let fecha = '', hora = '', vivienda = '', nombre = '', edad = '', notas = '';
+    let fecha = '', hora = '', vivienda = '', nombre = '', edad = '', hallazgos = '', acciones = '';
     if (cols.length >= 7) {
-      // Fecha, Hora, No. Vivienda, Nombre, Edad, Hallazgos, Acciones Ejecutadas
       fecha = (cols[0] || '').trim();
-      hora = (cols[1] || '').trim();
-      vivienda = (cols[2] || '').trim();
+      if (horaAntesDeVivienda) {
+        hora = (cols[1] || '').trim();
+        vivienda = (cols[2] || '').trim();
+      } else {
+        vivienda = (cols[1] || '').trim();
+        hora = (cols[2] || '').trim();
+      }
       nombre = (cols[3] || '').trim();
       edad = (cols[4] || '').trim();
-      const hallazgos = (cols[5] || '').trim();
-      const acciones = (cols[6] || '').trim();
-      notas = acciones ? `${hallazgos} (Nota adicional ya escrita sobre acciones/consejería a considerar: ${acciones})` : hallazgos;
+      hallazgos = (cols[5] || '').trim();
+      acciones = (cols[6] || '').trim();
     } else if (cols.length === 4) {
       // Nombre, Edad, Hallazgos, Acciones (sin fecha/hora de origen: se usa la actual)
       nombre = (cols[0] || '').trim();
       edad = (cols[1] || '').trim();
-      const hallazgos = (cols[2] || '').trim();
-      const acciones = (cols[3] || '').trim();
-      notas = acciones ? `${hallazgos} (Nota adicional ya escrita sobre acciones/consejería a considerar: ${acciones})` : hallazgos;
+      hallazgos = (cols[2] || '').trim();
+      acciones = (cols[3] || '').trim();
     } else {
-      // Nombre, Edad, Notas (sin fecha/hora de origen: se usa la actual)
+      // Nombre, Edad, Notas (sin fecha/hora de origen: se usa la actual; todo va a Hallazgos)
       nombre = (cols[0] || '').trim();
       edad = (cols[1] || '').trim();
-      notas = (cols[2] || '').trim();
+      hallazgos = (cols[2] || '').trim();
     }
 
     if (!fecha || !hora) {
@@ -3452,7 +3445,7 @@ function _asrParsearTSVPegado(texto) {
       if (!hora) hora = fh.hora;
     }
 
-    if (nombre || notas) filas.push({ fecha, hora, vivienda, nombre, edad, notas });
+    if (nombre || hallazgos || acciones) filas.push({ fecha, hora, vivienda, nombre, edad, hallazgos, acciones });
   }
   return filas;
 }
@@ -3471,15 +3464,16 @@ function importarFilasDesdeTSV() {
   const filasActuales = Array.from(tbody.querySelectorAll('tr'));
   const todasVacias = filasActuales.every(fila => {
     const tas = fila.querySelectorAll('textarea');
-    return !tas[0].value.trim() && !tas[1].value.trim() && !tas[2].value.trim() && !tas[3].value.trim() && !tas[4].value.trim() && !tas[5].value.trim();
+    return !tas[0].value.trim() && !tas[1].value.trim() && !tas[2].value.trim() && !tas[3].value.trim() && !tas[4].value.trim() && !tas[5].value.trim() && !tas[6].value.trim();
   });
   if (todasVacias) tbody.innerHTML = '';
 
-  filas.forEach(f => agregarFilaEntradaSilenciosa(f.fecha, f.hora, f.vivienda, f.nombre, f.edad, f.notas));
+  filas.forEach(f => agregarFilaEntradaSilenciosa(f.fecha, f.hora, f.vivienda, f.nombre, f.edad, f.hallazgos, f.acciones));
   document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
   guardarBorradorEntrada();
+  actualizarEstadisticasDesdeTabla();
   toggleImportarTSV();
-  alert(`✅ Se importaron ${filas.length} fila(s). Revisa las notas y presiona "✨ Generar Registro Oficial en Tabla" cuando estés listo.`);
+  alert(`✅ Se importaron ${filas.length} fila(s). Revisa el texto y usa "✨ Generar con IA" (lote o por fila) cuando estés listo.`);
 }
 
 /* ===================== AUTOGUARDADO DE BORRADOR (para no perder datos al cerrar) ===================== */
@@ -3496,15 +3490,16 @@ function guardarBorradorEntrada() {
     const tas = fila.querySelectorAll('textarea');
     return {
       fecha: tas[0] ? tas[0].value : '',
-      hora: tas[1] ? tas[1].value : '',
-      vivienda: tas[2] ? tas[2].value : '',
+      vivienda: tas[1] ? tas[1].value : '',
+      hora: tas[2] ? tas[2].value : '',
       nombre: tas[3] ? tas[3].value : '',
       edad: tas[4] ? tas[4].value : '',
-      notas: tas[5] ? tas[5].value : ''
+      hallazgos: tas[5] ? tas[5].value : '',
+      acciones: tas[6] ? tas[6].value : ''
     };
   });
   // Solo guardamos si hay al menos algo escrito, para no llenar el storage con filas vacías
-  const hayContenido = datos.some(d => d.vivienda || d.nombre || d.edad || d.notas);
+  const hayContenido = datos.some(d => d.vivienda || d.nombre || d.edad || d.hallazgos || d.acciones);
   if (hayContenido) {
     localStorage.setItem('borrador_entrada_registros', JSON.stringify(datos));
     mostrarAvisoBorrador();
@@ -3522,7 +3517,7 @@ function restaurarBorradorEntrada() {
 
     const tbody = document.querySelector('#tablaEntrada tbody');
     tbody.innerHTML = '';
-    filas.forEach(f => agregarFilaEntradaSilenciosa(f.fecha, f.hora, f.vivienda, f.nombre, f.edad, f.notas));
+    filas.forEach(f => agregarFilaEntradaSilenciosa(f.fecha, f.hora, f.vivienda, f.nombre, f.edad, (f.hallazgos !== undefined ? f.hallazgos : f.notas) || '', f.acciones || ''));
     document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
     mostrarAvisoBorrador();
     return true;
@@ -3532,44 +3527,12 @@ function restaurarBorradorEntrada() {
 }
 
 // Igual que agregarFilaEntrada pero sin volver a disparar el guardado (se usa solo al restaurar)
-function agregarFilaEntradaSilenciosa(fecha, hora, vivienda, nombre, edad, notas) {
+function agregarFilaEntradaSilenciosa(fecha, hora, vivienda, nombre, edad, hallazgos, acciones, generada) {
   const tbody = document.querySelector('#tablaEntrada tbody');
   const nuevaFila = document.createElement('tr');
-  nuevaFila.innerHTML = `
-    <td data-label="Fecha"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="dd/mm/aaaa">${escapeHtml(fecha)}</textarea></td>
-    <td data-label="Hora"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="hh:mm">${escapeHtml(hora)}</textarea></td>
-    <td data-label="No. Vivienda"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Ej: 31">${escapeHtml(vivienda)}</textarea></td>
-    <td data-label="Nombre de la Persona"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced();" placeholder="Nombre completo">${escapeHtml(nombre)}</textarea></td>
-    <td data-label="Edad"><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Ej: 35 años / 1 año 2 meses">${escapeHtml(edad)}</textarea></td>
-    <td data-label="Notas Rápidas / Hallazgos de Campo"><button type="button" class="btn-grafica-nutri" style="display:${_riesgoDatosGrafica(edad, notas, nombre) ? '' : 'none'};" title="Ver gráfica nutricional (con lo ya escrito, sin IA ni internet)" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br><textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorEntradaDebounced(); _actualizarBotonNutriEntrada(this);" placeholder="Describa notas de la visita...">${escapeHtml(notas)}</textarea></td>
-    <td data-label="Acción" style="text-align: center;"><button class="btn-delete" onclick="eliminarFilaEntrada(this)">🗑️</button></td>
-  `;
+  nuevaFila.innerHTML = _asrFilaHTML(fecha, hora, vivienda, nombre, edad, hallazgos, acciones);
+  if (generada) nuevaFila.classList.add('fila-generada');
   tbody.appendChild(nuevaFila);
-}
-
-let _timeoutBorradorResultado = null;
-function guardarBorradorResultadoDebounced() {
-  clearTimeout(_timeoutBorradorResultado);
-  _timeoutBorradorResultado = setTimeout(guardarBorradorResultado, 500);
-}
-
-function guardarBorradorResultado() {
-  const tsvActual = leerTablaResultadoActual();
-  if (tsvActual) {
-    ultimoTSVGenerado = tsvActual;
-    localStorage.setItem('borrador_resultado_registros', tsvActual);
-    mostrarAvisoBorrador();
-  }
-}
-
-function restaurarBorradorResultado() {
-  const tsvGuardado = localStorage.getItem('borrador_resultado_registros');
-  if (!tsvGuardado) return false;
-  ultimoTSVGenerado = tsvGuardado;
-  renderizarTablaResultado(tsvGuardado);
-  document.getElementById('resultContainer').style.display = 'block';
-  mostrarAvisoBorrador();
-  return true;
 }
 
 let _timeoutAviso = null;
@@ -3582,33 +3545,30 @@ function mostrarAvisoBorrador() {
 }
 
 function limpiarNotasEntrada() {
-  if (!confirm('¿Quieres borrar todas las notas escritas para la IA? Esto no afecta ningún resultado ya generado ni el historial guardado.')) return;
+  if (!confirm('¿Quieres borrar todo lo escrito en el cuadro? Esto no afecta el historial ya guardado.')) return;
 
   localStorage.removeItem('borrador_entrada_registros');
 
   const tbody = document.querySelector('#tablaEntrada tbody');
   tbody.innerHTML = '';
-  agregarFilaEntradaSilenciosa(_asrFechaHoraActual().fecha, _asrFechaHoraActual().hora, '', '', '', '');
+  agregarFilaEntradaSilenciosa(_asrFechaHoraActual().fecha, _asrFechaHoraActual().hora, '', '', '', '', '');
   document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
+  actualizarEstadisticasDesdeTabla();
 
   const primerArea = document.querySelector('#tablaEntrada tbody tr textarea');
   if (primerArea) primerArea.focus();
 }
 
 function limpiarFormularioCompleto() {
-  if (!confirm('¿Quieres borrar el formulario actual y el resultado generado (aún no guardados en el historial)? Esta acción no se puede deshacer.')) return;
+  if (!confirm('¿Quieres borrar todo el cuadro actual (aún no guardado en el historial)? Esta acción no se puede deshacer.')) return;
 
   localStorage.removeItem('borrador_entrada_registros');
-  localStorage.removeItem('borrador_resultado_registros');
 
   const tbody = document.querySelector('#tablaEntrada tbody');
   tbody.innerHTML = '';
-  agregarFilaEntradaSilenciosa(_asrFechaHoraActual().fecha, _asrFechaHoraActual().hora, '', '', '', '');
+  agregarFilaEntradaSilenciosa(_asrFechaHoraActual().fecha, _asrFechaHoraActual().hora, '', '', '', '', '');
   document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
-
-  ultimoTSVGenerado = '';
-  document.getElementById('resultContainer').style.display = 'none';
-  document.getElementById('tableContainer').innerHTML = '';
+  actualizarEstadisticasDesdeTabla();
 }
 
 async function fetchConTimeout(url, options, timeoutMs) {
@@ -3688,7 +3648,10 @@ function _asrExtraerNumeros(texto) {
   return out;
 }
 
-async function generarInforme() {
+// filaUnica: si se pasa un <tr>, solo se procesa esa fila (botón ♻️ individual).
+// forzar: si es true, ignora la caché y vuelve a mandar la fila a la IA aunque no haya cambiado
+// (se usa desde el botón individual, para poder pedir una nueva redacción a propósito).
+async function generarInforme(filaUnica, forzar) {
   const proveedorId = asrProveedorActual();
   const proveedor = ASR_PROVEEDORES[proveedorId];
   const apiKey = localStorage.getItem(proveedor.keyStorage);
@@ -3701,7 +3664,8 @@ async function generarInforme() {
     return;
   }
 
-  const filasEntrada = document.querySelectorAll('#tablaEntrada tbody tr');
+  const filasEntrada = filaUnica ? [filaUnica] : Array.from(document.querySelectorAll('#tablaEntrada tbody tr'));
+  if (forzar && filaUnica) { delete filaUnica.dataset.asrHuella; delete filaUnica.dataset.asrCols; }
   let datosEntradaTexto = "";
   let tieneDatosTotales = false;
   let tieneDatosNuevos = false;
@@ -3712,23 +3676,26 @@ async function generarInforme() {
   filasEntrada.forEach((fila) => {
     const textareas = fila.querySelectorAll('textarea');
     const fecha = textareas[0].value.trim();
-    const hora = textareas[1].value.trim();
-    const vivienda = textareas[2].value.trim();
+    const vivienda = textareas[1].value.trim();
+    const hora = textareas[2].value.trim();
     const nombre = textareas[3].value.trim();
     const edad = textareas[4].value.trim();
-    const notas = textareas[5].value.trim();
+    const hallazgosActuales = textareas[5].value.trim();
+    const accionesActuales = textareas[6].value.trim();
+    // Texto combinado ACTUAL de "Hallazgos y Acciones Ejecutadas" (lo que haya en ambos campos
+    // en este momento: nota cruda escrita por el promotor, o texto ya generado antes si el
+    // promotor lo volvió a editar: la IA siempre trabaja sobre lo que esté escrito aquí).
+    const notas = [hallazgosActuales, accionesActuales].filter(Boolean).join('\n');
 
     if (!(nombre || notas)) return; // fila vacía: se ignora, igual que antes
     tieneDatosTotales = true;
 
-    // Si esta fila ya se generó antes con exactamente los mismos datos (nombre/edad/notas Y
+    // Si esta fila ya se generó antes con exactamente el mismo texto (nombre/edad/hallazgos Y
     // el mismo nivel de detalle), se reutiliza el resultado guardado y NO se vuelve a mandar
-    // a la IA. Si el nivel de detalle cambió (ej. de "Básico" a "Ampliado"), sí se vuelve a
-    // generar aunque nombre/edad/notas sigan iguales — antes esto no se detectaba porque el
-    // nivel de detalle no formaba parte de la huella de comparación.
+    // a la IA (evita reprocesar dos veces el mismo texto y gastar solicitudes de más).
     const huellaActual = JSON.stringify({ nombre, edad, notas, modo });
-    if (fila.dataset.asrHuella === huellaActual && fila.dataset.asrCols) {
-      filasParaMerge.push({ fuente: 'cache', fecha, hora, vivienda, cols: JSON.parse(fila.dataset.asrCols), edadOriginal: edad, notasOriginal: notas, nombreOriginal: nombre });
+    if (!forzar && fila.dataset.asrHuella === huellaActual && fila.dataset.asrCols) {
+      filasParaMerge.push({ fuente: 'cache', fecha, hora, vivienda, cols: JSON.parse(fila.dataset.asrCols), edadOriginal: edad, notasOriginal: notas, _fila: fila });
       return;
     }
 
@@ -3771,7 +3738,7 @@ async function generarInforme() {
     };
     itemsEntrada.push(item);
     datosEntradaTexto += `${itemsEntrada.length}. Nombre: ${nombre || 'No especificado'} | Edad: ${edad || 'No especificada'} | Inicio obligatorio Hallazgos: "${aperturaHallazgos}" | Inicio obligatorio Acciones: "${aperturaAcciones}" | Notas: ${notas || 'Sin observaciones'}${etiquetaRiesgo ? ' ' + etiquetaRiesgo : ''}\n`;
-    filasParaMerge.push({ fuente: 'nueva', fecha, hora, vivienda, itemRef: item, edadOriginal: edad, notasOriginal: notas, nombreOriginal: nombre });
+    filasParaMerge.push({ fuente: 'nueva', fecha, hora, vivienda, itemRef: item, edadOriginal: edad, notasOriginal: notas, _fila: fila });
   });
 
   if (!tieneDatosTotales) {
@@ -3879,11 +3846,17 @@ PROHIBIDO CALCULAR O CLASIFICAR TÚ MISMO EL IMC / ESTADO NUTRICIONAL (regla cr�
 
   const promptSystem = _asrConstruirReglas(reglaDetalle, hayRiesgoDetectado) + `\n\nPacientes ingresados por el usuario:\n${datosEntradaTexto}\n`;
 
-  const outputContainer = document.getElementById('resultContainer');
-  const tableContainer = document.getElementById('tableContainer');
-  
-  tableContainer.innerHTML = '<div class="loading-text">⏳ Procesando los registros con Inteligencia Artificial... Por favor espera unos segundos.</div>';
-  outputContainer.style.display = 'block';
+  const estadoIA = document.getElementById('avisoEstadoIA');
+  function _asrMostrarEstado(mensaje, esError) {
+    if (!estadoIA) return;
+    estadoIA.textContent = mensaje;
+    estadoIA.style.background = esError ? '#fef2f2' : '#eff6ff';
+    estadoIA.style.color = esError ? '#991b1b' : '#1e3a8a';
+    estadoIA.style.borderColor = esError ? '#fecaca' : '#bfdbfe';
+    estadoIA.classList.add('visible');
+  }
+
+  _asrMostrarEstado(filaUnica ? '⏳ Procesando esta fila con Inteligencia Artificial...' : '⏳ Procesando los registros con Inteligencia Artificial... Por favor espera unos segundos.', false);
 
   // Arma la URL, cabeceras y cuerpo de la petición según el proveedor de IA elegido.
   // Groq y OpenRouter usan el mismo formato "estilo OpenAI" (chat/completions);
@@ -3968,13 +3941,13 @@ PROHIBIDO CALCULAR O CLASIFICAR TÚ MISMO EL IMC / ESTADO NUTRICIONAL (regla cr�
     const primerIntento = await _asrLlamarIA(promptSystem, temp);
 
     if (!primerIntento.ok) {
-      tableContainer.innerHTML = `<div class="loading-text" style="color:red;">❌ ${primerIntento.mensaje}</div>`;
+      _asrMostrarEstado(`❌ ${primerIntento.mensaje}`, true);
       return;
     }
 
     const validacion = validarEstructuraTSV(primerIntento.contenido);
     if (!validacion.valido) {
-      tableContainer.innerHTML = `<div class="loading-text" style="color:red;">⚠️ La IA devolvió una tabla con formato inesperado (${validacion.motivo}). Presiona "✨ Generar" de nuevo para reintentar.</div>`;
+      _asrMostrarEstado(`⚠️ La IA devolvió una tabla con formato inesperado (${validacion.motivo}). Presiona "✨ Generar" de nuevo para reintentar.`, true);
       return;
     }
 
@@ -4037,110 +4010,84 @@ PROHIBIDO CALCULAR O CLASIFICAR TÚ MISMO EL IMC / ESTADO NUTRICIONAL (regla cr�
       }
     }
 
-    // Arma la tabla final agregando, antes de las columnas que ya redactó la IA, lo que
-    // el usuario ya escribió en su fila de entrada: Fecha, Hora y No. de Vivienda.
-    // Si alguna fila se quedó sin fecha/hora (ej. importada desde un formato viejo),
-    // se usa el momento actual como respaldo para no dejar la celda vacía.
-    function _asrArmarTablaFinal(encabezadoIA, filasIA, items) {
-      const fh = _asrFechaHoraActual();
-      const encabezadoFinal = `Fecha\tHora\tNo. Vivienda\t${encabezadoIA}`;
-      const filasFinal = filasIA.map((cols, i) => {
-        const it = items[i] || {};
-        const fecha = it.fecha || fh.fecha;
-        const hora = it.hora || fh.hora;
-        const vivienda = it.vivienda || '';
-        return `${fecha}\t${hora}\t${vivienda}\t${cols.join('\t')}`;
-      });
-      return [encabezadoFinal, ...filasFinal].join('\n');
-    }
-
-    // Guarda en cada <tr> de entrada el resultado recién generado (huella + columnas de la IA),
-    // para que la próxima vez que se presione "Generar" esa fila se reutilice sin gastar tokens.
+    // Guarda en cada <tr> de entrada las columnas recién generadas por la IA (aún no se ha
+    // escrito nada en pantalla todavía; eso ocurre justo abajo, igual para las filas nuevas
+    // que para las que se reutilizan de caché).
     itemsEntrada.forEach((item, i) => {
       if (filasResultado[i]) {
-        item._fila.dataset.asrHuella = item._huella;
         item._fila.dataset.asrCols = JSON.stringify(filasResultado[i]);
       }
     });
 
-    // Reconstruye el orden final combinando lo recién generado con lo que ya estaba en caché.
-    const filasIAFinal = filasParaMerge.map(f => f.fuente === 'cache' ? f.cols : JSON.parse(f.itemRef._fila.dataset.asrCols));
-    const itemsFinalParaFechas = filasParaMerge.map(f => ({ fecha: f.fecha, hora: f.hora, vivienda: f.vivienda }));
+    // Escribe el resultado directamente en las dos columnas "Hallazgos" y "Acciones Ejecutadas"
+    // de cada fila del cuadro único (son dos columnas separadas, unidas bajo el mismo encabezado
+    // "Hallazgos y Acciones Ejecutadas") — no se crea ninguna tabla aparte. Se conserva la nota
+    // original en data-notas-original para que la gráfica nutricional siga funcionando aunque
+    // la IA parafrasee el texto.
+    let edadesDetectadas = [];
+    filasParaMerge.forEach((f) => {
+      const fila = f._fila;
+      if (!fila) return;
+      const cols = f.fuente === 'cache' ? f.cols : JSON.parse(fila.dataset.asrCols);
+      const hallazgos = (cols[2] || '').trim();
+      const acciones = (cols[3] || '').trim();
 
-    const resultado = _asrArmarTablaFinal(encabezado, filasIAFinal, itemsFinalParaFechas);
+      const textareasFila = fila.querySelectorAll('textarea');
+      const taHallazgos = textareasFila[5];
+      const taAcciones = textareasFila[6];
+      if (taHallazgos) { taHallazgos.value = hallazgos; autoAjustarTexto(taHallazgos); }
+      if (taAcciones) { taAcciones.value = acciones; autoAjustarTexto(taAcciones); }
+      fila.classList.add('fila-generada');
+      fila.dataset.notasOriginal = f.notasOriginal || '';
+      fila.dataset.edadOriginal = f.edadOriginal || '';
+      _actualizarBotonNutriEntrada(taHallazgos || fila);
 
-    ultimoTSVGenerado = resultado; // Guardar variable en memoria
-    const datosOriginalesPorFila = filasParaMerge.map(f => ({ edad: f.edadOriginal, notas: f.notasOriginal, nombre: f.nombreOriginal }));
-    renderizarTablaResultado(resultado, datosOriginalesPorFila);
-    localStorage.setItem('borrador_resultado_registros', resultado); // Autoguardar borrador
-    mostrarAvisoBorrador();
+      // Actualiza la huella con el texto YA generado (no con la nota cruda original), para que
+      // si se presiona "Generar" de nuevo sin tocar esta fila, no se vuelva a mandar a la IA.
+      const nombreActual = (textareasFila[3] && textareasFila[3].value.trim()) || '';
+      const edadActual = (textareasFila[4] && textareasFila[4].value.trim()) || '';
+      const notasFinal = [hallazgos, acciones].filter(Boolean).join('\n');
+      fila.dataset.asrHuella = JSON.stringify({ nombre: nombreActual, edad: edadActual, notas: notasFinal, modo });
+      fila.dataset.asrCols = JSON.stringify(cols);
+
+      const meses = _riesgoParsearEdadCampo(edadActual);
+      if (meses != null) edadesDetectadas.push(meses);
+    });
+
+    guardarBorradorEntrada(); // Autoguardar borrador con el texto ya generado
+    actualizarEstadisticasDesdeTabla();
+    _asrMostrarEstado(filaUnica ? '✅ Fila actualizada con IA.' : '✅ Cuadro actualizado con IA.', false);
     if (avisoDesajuste) alert('Registro generado.' + avisoDesajuste);
   } catch (error) {
     console.error(error);
-    tableContainer.innerHTML = '<div class="loading-text" style="color:red;">❌ Error inesperado al procesar la respuesta de la IA. Intenta generar de nuevo.</div>';
+    _asrMostrarEstado('❌ Error inesperado al procesar la respuesta de la IA. Intenta generar de nuevo.', true);
   }
 }
 
-function renderizarTablaResultado(tsvData, datosOriginalesPorFila) {
-  const lineas = tsvData.split('\n');
-  if (lineas.length === 0) return;
+// Llama desde el botón ♻️ de una fila: solo genera/mejora con IA esa fila del cuadro único.
+function generarFilaIndividual(btn) {
+  const fila = btn.closest('tr');
+  if (fila) generarInforme(fila, true);
+}
 
-  let htmlTable = '<table id="tablaResultado"><thead><tr>';
-  
-  const encabezados = lineas[0].split('\t');
-  const anchos = ['8%', '6%', '9%', '14%', '8%', '27%', '28%'];
-  
-  encabezados.forEach((header, idx) => {
-    htmlTable += `<th style="width: ${anchos[idx] || 'auto'};">${header.trim()}</th>`;
-  });
-  htmlTable += '</tr></thead><tbody>';
+// Quita la marca visual de "ya generado" cuando el promotor vuelve a editar el texto a mano
+// (así se ve claramente que ese texto todavía no ha pasado, o ya no coincide, con la IA).
+function _marcarFilaEditada(el) {
+  const fila = el.closest('tr');
+  if (fila) fila.classList.remove('fila-generada');
+}
 
+// Recalcula las estadísticas por edad leyendo directamente la columna "Edad" de TODAS las
+// filas del cuadro único actual (con o sin IA, generadas o no), sin depender de haber
+// generado nada con IA.
+function actualizarEstadisticasDesdeTabla() {
   const edadesDetectadas = [];
-  const idxEdad = encabezados.findIndex(h => h.trim().toLowerCase() === 'edad');
-  const idxHallazgos = encabezados.findIndex(h => h.trim().toLowerCase().indexOf('hallazgos') !== -1);
-  const idxNombreCol = encabezados.findIndex(h => h.trim().toLowerCase().indexOf('nombre') !== -1);
-
-  for (let i = 1; i < lineas.length; i++) {
-    if (lineas[i].trim() === '') continue;
-    const celdas = lineas[i].split('\t');
-    if (idxEdad >= 0 && celdas[idxEdad]) {
-      const meses = _riesgoParsearEdadCampo(celdas[idxEdad].trim());
-      if (meses != null) edadesDetectadas.push(meses);
-    }
-    // Datos ORIGINALES de esta fila (edad + nota tal como se escribieron, antes de la IA), si
-    // están disponibles. Se usan de preferencia porque la IA puede parafrasear la nota y perder
-    // palabras clave (ej. "niño"/"niña") que la IA no repite necesariamente en su redacción.
-    const original = (datosOriginalesPorFila && datosOriginalesPorFila[i - 1]) || null;
-    // Solo se muestra el botón de gráfica en filas donde SÍ hay una evaluación nutricional
-    // detectable (edad+sexo+peso/talla en menores, o peso+talla en adultos).
-    const tieneNutri = original
-      ? !!_riesgoDatosGrafica(original.edad || '', original.notas || '', original.nombre || '')
-      : ((idxEdad >= 0 && idxHallazgos >= 0) ? !!_riesgoDatosGrafica(celdas[idxEdad] || '', celdas[idxHallazgos] || '', (idxNombreCol >= 0 ? celdas[idxNombreCol] : '') || '') : false);
-    const atributosOriginal = original
-      ? ` data-edad-original="${(original.edad || '').replace(/"/g, '&quot;')}" data-notas-original="${(original.notas || '').replace(/"/g, '&quot;')}"`
-      : '';
-    htmlTable += `<tr${atributosOriginal}>`;
-    celdas.forEach((cell, idx) => {
-      const textoLimpio = cell.trim().replace(/"/g, '&quot;');
-      const etiqueta = (encabezados[idx] || '').trim().replace(/"/g, '&quot;');
-      const botonNutri = (idx === idxHallazgos && tieneNutri)
-        ? '<button type="button" class="btn-grafica-nutri" title="Ver gráfica nutricional" onclick="abrirGraficaNutricional(this)">📊 Gráfica</button><br>'
-        : '';
-      htmlTable += `<td data-label="${etiqueta}">${botonNutri}<textarea rows="1" oninput="autoAjustarTexto(this); guardarBorradorResultadoDebounced();">${textoLimpio}</textarea></td>`;
-    });
-    htmlTable += '</tr>';
-  }
-
-  htmlTable += '</tbody></table>';
-  document.getElementById('tableContainer').innerHTML = htmlTable;
-  document.getElementById('btnImprimirInforme').style.display = '';
-  document.getElementById('firmasContainer').style.display = 'flex';
-
+  document.querySelectorAll('#tablaEntrada tbody tr').forEach(fila => {
+    const ta = fila.querySelectorAll('textarea')[4];
+    const meses = ta ? _riesgoParsearEdadCampo(ta.value.trim()) : null;
+    if (meses != null) edadesDetectadas.push(meses);
+  });
   renderizarEstadisticasPorEdad(edadesDetectadas);
-
-  setTimeout(() => {
-    document.querySelectorAll('#tablaResultado textarea').forEach(autoAjustarTexto);
-  }, 50);
 }
 
 // Agrupa las edades (en meses) del lote actual en los mismos rangos que usa el
@@ -4187,60 +4134,44 @@ function obtenerHistorial() {
   return data ? JSON.parse(data) : [];
 }
 
-// Lee el contenido ACTUAL de la tabla resultado directamente del DOM,
-// incluyendo cualquier corrección manual hecha en los textarea, y lo
-// reconstruye como TSV (mismo formato que devuelve la IA).
-function leerTablaResultadoActual() {
-  const tabla = document.getElementById('tablaResultado');
-  if (!tabla) return null;
-
-  const headers = Array.from(tabla.querySelectorAll('th')).map(th => th.innerText.trim());
-  let tsvString = headers.join('\t') + '\n';
-
-  const filas = tabla.querySelectorAll('tbody tr');
-  filas.forEach(fila => {
-    const textareas = fila.querySelectorAll('textarea');
-    const valoresFila = Array.from(textareas).map(ta => ta.value.trim());
-    if (valoresFila.some(val => val !== "")) {
-      tsvString += valoresFila.join('\t') + '\n';
-    }
-  });
-
-  return tsvString.trim();
-}
-
+// Guarda una "foto" completa del cuadro único actual (todas las filas, tal como están: con
+// texto generado por IA, redactado a mano, o mezcla de ambos). Si ya se guardó algo hoy, se
+// ACTUALIZA esa misma entrada en vez de crear una nueva, para no llenar el historial de copias
+// del mismo día.
 function guardarEnHistorial() {
-  // Tomar siempre la versión más reciente de la tabla (con ediciones manuales incluidas)
-  const tsvActual = leerTablaResultadoActual();
-  if (tsvActual) {
-    ultimoTSVGenerado = tsvActual; // Sincronizar la variable en memoria con lo que se ve en pantalla
-  }
+  const filas = leerFilasEntradaActuales();
 
-  if (!ultimoTSVGenerado) {
-    alert('Primero debes generar una tabla para guardar.');
+  if (filas.length === 0) {
+    alert('No hay datos escritos todavía en el cuadro para guardar.');
     return;
   }
 
   const historial = obtenerHistorial();
   const fechaActual = new Date();
-  const fechaFormateada = fechaActual.toLocaleDateString('es-ES', { 
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+  const diaKey = fechaActual.toDateString();
+  const fechaFormateada = fechaActual.toLocaleDateString('es-ES', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  // Contar cantidad de pacientes
-  const totalPacientes = ultimoTSVGenerado.split('\n').length - 1;
+  const entradaDeHoy = historial.find(item => item.diaKey === diaKey);
 
-  const nuevoItem = {
-    id: Date.now(),
-    fecha: fechaFormateada,
-    pacientesCount: totalPacientes > 0 ? totalPacientes : 1,
-    tsvData: ultimoTSVGenerado
-  };
+  if (entradaDeHoy) {
+    entradaDeHoy.filas = filas;
+    entradaDeHoy.pacientesCount = filas.length;
+    entradaDeHoy.fecha = fechaFormateada;
+  } else {
+    historial.unshift({
+      id: Date.now(),
+      diaKey: diaKey,
+      fecha: fechaFormateada,
+      pacientesCount: filas.length,
+      filas: filas
+    });
+  }
 
-  historial.unshift(nuevoItem); // Agregar al inicio
   localStorage.setItem('historial_registros_salud', JSON.stringify(historial));
-  
-  alert('¡Registro guardado en tu historial local!');
+
+  alert(entradaDeHoy ? '¡Cuadro de hoy actualizado en el historial!' : '¡Cuadro guardado en tu historial local!');
   cargarHistorialUI();
 }
 
@@ -4248,7 +4179,7 @@ let historialAbierto = false;
 function toggleHistorial() {
   historialAbierto = !historialAbierto;
   document.getElementById('listaHistorial').style.display = historialAbierto ? 'block' : 'none';
-  document.getElementById('flechaHistorial').textContent = historialAbierto ? '▲' : '▼';
+  document.getElementById('flechaHistorial').textContent = historialAbierto ? '\u25b2' : '\u25bc';
 }
 
 function cargarHistorialUI() {
@@ -4259,7 +4190,7 @@ function cargarHistorialUI() {
   if (contador) contador.textContent = historial.length;
 
   if (historial.length === 0) {
-    contenedor.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No hay registros guardados en el historial aún.</p>';
+    contenedor.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No hay cuadros guardados en el historial aún.</p>';
     return;
   }
 
@@ -4268,12 +4199,12 @@ function cargarHistorialUI() {
     html += `
       <div class="historial-item">
         <div class="historial-info">
-          <strong>📅 Registro del ${item.fecha}</strong>
-          <p>👥 ${item.pacientesCount} persona(s) procesada(s)</p>
+          <strong>\ud83d\udcc5 Cuadro del ${item.fecha}</strong>
+          <p>\ud83d\udc65 ${item.pacientesCount} persona(s) registrada(s)</p>
         </div>
         <div style="display: flex; gap: 8px;">
-          <button class="btn-secondary-sm" onclick="cargarItemHistorial(${item.id})">👁️ Ver / Cargar</button>
-          <button class="btn-danger-sm" onclick="eliminarItemHistorial(${item.id})">🗑️ Borrar</button>
+          <button class="btn-secondary-sm" onclick="cargarItemHistorial(${item.id})">\ud83d\udc41\ufe0f Ver / Cargar</button>
+          <button class="btn-danger-sm" onclick="eliminarItemHistorial(${item.id})">\ud83d\uddd1\ufe0f Borrar</button>
         </div>
       </div>
     `;
@@ -4285,17 +4216,23 @@ function cargarHistorialUI() {
 function cargarItemHistorial(id) {
   const historial = obtenerHistorial();
   const item = historial.find(x => x.id === id);
-  if (item) {
-    ultimoTSVGenerado = item.tsvData;
-    renderizarTablaResultado(item.tsvData);
-    document.getElementById('resultContainer').style.display = 'block';
-    document.getElementById('resultContainer').scrollIntoView({ behavior: 'smooth' });
-    localStorage.setItem('borrador_resultado_registros', item.tsvData); // para no perderlo si se cierra mientras lo revisa
-  }
+  if (!item) return;
+
+  if (!confirm('Esto reemplazará el cuadro actual con el cuadro guardado de esta fecha. ¿Deseas continuar?')) return;
+
+  const tbody = document.querySelector('#tablaEntrada tbody');
+  tbody.innerHTML = '';
+  item.filas.forEach(f => agregarFilaEntradaSilenciosa(f.fecha, f.hora, f.vivienda, f.nombre, f.edad, (f.hallazgos !== undefined ? f.hallazgos : f.notas) || '', f.acciones || ''));
+  if (item.filas.length === 0) agregarFilaEntradaSilenciosa(_asrFechaHoraActual().fecha, _asrFechaHoraActual().hora, '', '', '', '');
+  document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
+  guardarBorradorEntrada();
+  actualizarEstadisticasDesdeTabla();
+
+  document.querySelector('.card-notas').scrollIntoView({ behavior: 'smooth' });
 }
 
 function eliminarItemHistorial(id) {
-  if (confirm('¿Estás seguro de eliminar este registro del historial?')) {
+  if (confirm('\u00bfEst\u00e1s seguro de eliminar este cuadro del historial?')) {
     let historial = obtenerHistorial();
     historial = historial.filter(x => x.id !== id);
     localStorage.setItem('historial_registros_salud', JSON.stringify(historial));
@@ -4304,164 +4241,46 @@ function eliminarItemHistorial(id) {
 }
 
 function vaciarTodoHistorial() {
-  if (confirm('⚠️ ¿Quieres eliminar TODO el historial guardado? Esta acción no se puede deshacer.')) {
+  if (confirm('\u26a0\ufe0f \u00bfQuieres eliminar TODO el historial guardado? Esta acci\u00f3n no se puede deshacer.')) {
     localStorage.removeItem('historial_registros_salud');
     cargarHistorialUI();
   }
 }
 
-/* ===================== HISTORIAL DIARIO DE NOTAS RÁPIDAS (LocalStorage) =====================
-   Permite guardar una "foto" de las notas de campo (antes de generar el informe con IA),
-   para no perder el trabajo del día y poder recuperarlo o revisarlo más tarde. */
-
-function obtenerHistorialNotas() {
-  const data = localStorage.getItem('historial_notas_diarias');
-  return data ? JSON.parse(data) : [];
-}
-
+// Lee el cuadro único completo tal como está en pantalla ahora mismo (con ediciones manuales
+// incluidas), fila por fila.
 function leerFilasEntradaActuales() {
   const filas = document.querySelectorAll('#tablaEntrada tbody tr');
   return Array.from(filas).map(fila => {
     const tas = fila.querySelectorAll('textarea');
     return {
       fecha: tas[0] ? tas[0].value.trim() : '',
-      hora: tas[1] ? tas[1].value.trim() : '',
-      vivienda: tas[2] ? tas[2].value.trim() : '',
+      vivienda: tas[1] ? tas[1].value.trim() : '',
+      hora: tas[2] ? tas[2].value.trim() : '',
       nombre: tas[3] ? tas[3].value.trim() : '',
       edad: tas[4] ? tas[4].value.trim() : '',
-      notas: tas[5] ? tas[5].value.trim() : ''
+      hallazgos: tas[5] ? tas[5].value.trim() : '',
+      acciones: tas[6] ? tas[6].value.trim() : ''
     };
-  }).filter(f => f.vivienda || f.nombre || f.edad || f.notas);
-}
-
-function guardarNotasEnHistorial() {
-  const filas = leerFilasEntradaActuales();
-
-  if (filas.length === 0) {
-    alert('No hay notas escritas todavía para guardar en el historial.');
-    return;
-  }
-
-  const historial = obtenerHistorialNotas();
-  const fechaActual = new Date();
-  const diaKey = fechaActual.toDateString(); // Identifica el día calendario (para no duplicar mientras no termine el día)
-  const fechaFormateada = fechaActual.toLocaleDateString('es-ES', {
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
-
-  // Si ya se guardó algo hoy, se ACTUALIZA esa misma entrada en vez de crear una nueva
-  const entradaDeHoy = historial.find(item => item.diaKey === diaKey);
-
-  if (entradaDeHoy) {
-    entradaDeHoy.filas = filas;
-    entradaDeHoy.pacientesCount = filas.length;
-    entradaDeHoy.fecha = fechaFormateada; // refleja la hora de la última actualización
-  } else {
-    historial.unshift({
-      id: Date.now(),
-      diaKey: diaKey,
-      fecha: fechaFormateada,
-      pacientesCount: filas.length,
-      filas: filas
-    });
-  }
-
-  localStorage.setItem('historial_notas_diarias', JSON.stringify(historial));
-
-  alert(entradaDeHoy ? '¡Notas de hoy actualizadas en el historial!' : '¡Notas guardadas en tu historial diario local!');
-  cargarHistorialNotasUI();
-}
-
-let historialNotasAbierto = false;
-function toggleHistorialNotas() {
-  historialNotasAbierto = !historialNotasAbierto;
-  document.getElementById('listaHistorialNotas').style.display = historialNotasAbierto ? 'block' : 'none';
-  document.getElementById('flechaHistorialNotas').textContent = historialNotasAbierto ? '▲' : '▼';
-}
-
-function cargarHistorialNotasUI() {
-  const historial = obtenerHistorialNotas();
-  const contenedor = document.getElementById('contenidoHistorialNotas');
-
-  const contador = document.getElementById('contadorHistorialNotas');
-  if (contador) contador.textContent = historial.length;
-
-  if (historial.length === 0) {
-    contenedor.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No hay notas guardadas en el historial aún.</p>';
-    return;
-  }
-
-  let html = '';
-  historial.forEach(item => {
-    html += `
-      <div class="historial-item-notas">
-        <div class="historial-info">
-          <strong>📅 Notas del ${item.fecha}</strong>
-          <p>👥 ${item.pacientesCount} persona(s) anotada(s)</p>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn-secondary-sm" onclick="cargarItemHistorialNotas(${item.id})">👁️ Ver / Cargar</button>
-          <button class="btn-danger-sm" onclick="eliminarItemHistorialNotas(${item.id})">🗑️ Borrar</button>
-        </div>
-      </div>
-    `;
-  });
-
-  contenedor.innerHTML = html;
-}
-
-function cargarItemHistorialNotas(id) {
-  const historial = obtenerHistorialNotas();
-  const item = historial.find(x => x.id === id);
-  if (!item) return;
-
-  if (!confirm('Esto reemplazará las notas actuales del formulario con las notas guardadas de esta fecha. ¿Deseas continuar?')) return;
-
-  const tbody = document.querySelector('#tablaEntrada tbody');
-  tbody.innerHTML = '';
-  item.filas.forEach(f => agregarFilaEntradaSilenciosa(f.fecha, f.hora, f.vivienda, f.nombre, f.edad, f.notas));
-  if (item.filas.length === 0) agregarFilaEntradaSilenciosa(_asrFechaHoraActual().fecha, _asrFechaHoraActual().hora, '', '', '', '');
-  document.querySelectorAll('#tablaEntrada textarea').forEach(autoAjustarTexto);
-  guardarBorradorEntrada();
-
-  document.querySelector('.card-notas').scrollIntoView({ behavior: 'smooth' });
-}
-
-function eliminarItemHistorialNotas(id) {
-  if (confirm('¿Estás seguro de eliminar estas notas del historial diario?')) {
-    let historial = obtenerHistorialNotas();
-    historial = historial.filter(x => x.id !== id);
-    localStorage.setItem('historial_notas_diarias', JSON.stringify(historial));
-    cargarHistorialNotasUI();
-  }
-}
-
-function vaciarHistorialNotas() {
-  if (confirm('⚠️ ¿Quieres eliminar TODO el historial de notas diarias? Esta acción no se puede deshacer.')) {
-    localStorage.removeItem('historial_notas_diarias');
-    cargarHistorialNotasUI();
-  }
+  }).filter(f => f.vivienda || f.nombre || f.edad || f.hallazgos || f.acciones);
 }
 
 function copiarAlPortapapeles() {
-  const tabla = document.getElementById('tablaResultado');
-  if (!tabla) return;
+  const filasDatos = leerFilasEntradaActuales();
+  if (!filasDatos.length) {
+    alert('No hay datos en el cuadro para copiar.');
+    return;
+  }
 
-  let tsvString = "";
-  const headers = Array.from(tabla.querySelectorAll('th')).map(th => th.innerText);
-  tsvString += headers.join('\t') + '\n';
-
-  const filas = tabla.querySelectorAll('tbody tr');
-  filas.forEach(fila => {
-    const textareas = fila.querySelectorAll('textarea');
-    const valoresFila = Array.from(textareas).map(ta => ta.value.trim());
-    if (valoresFila.some(val => val !== "")) {
-      tsvString += valoresFila.join('\t') + '\n';
-    }
+  let tsvString = ['Fecha', 'No. Vivienda', 'Hora', 'Nombre del Usuario', 'Edad', 'Hallazgos', 'Acciones Ejecutadas, Consejería y Acuerdos'].join('\t') + '\n';
+  filasDatos.forEach(f => {
+    tsvString += [f.fecha, f.vivienda, f.hora, f.nombre, f.edad, f.hallazgos, f.acciones].join('\t') + '\n';
   });
 
   navigator.clipboard.writeText(tsvString.trim()).then(() => {
-    alert('¡Tabla copiada al portapapeles! Lista para pegar en Excel o Google Sheets (Ctrl + V).');
+    alert('¡Tabla copiada al portapapeles! Lista para pegar en Excel, Google Sheets o el cuadro oficial (Ctrl + V).');
+  }).catch(() => {
+    alert('No se pudo copiar automáticamente. Selecciona y copia el texto manualmente.');
   });
 }
 
