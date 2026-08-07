@@ -1053,7 +1053,7 @@
       El botón "📊 Gráfica" aparece automáticamente en la fila cuando detecta suficientes datos escritos en <b>Hallazgos</b> (o en Edad). Usa estas palabras clave:
     </p>
     <ul style="font-size:13px; line-height:1.8; margin:0 0 8px; padding-left:20px;">
-      <li><b>Sexo</b> (en menores de edad): usa "niño" / "niña", o "masculino" / "femenino", o "varón" / "mujer". Ejemplo: <i>"Se evaluó a la niña..."</i></li>
+      <li><b>Sexo</b> (en menores de edad): usa "niño" / "niña", o "masculino" / "femenino", o "varón" / "mujer". Ejemplo: <i>"Se evaluó a la niña..."</i>. Si no se escribe ninguna, el sistema intenta reconocer el sexo por el nombre propio de la persona.</li>
       <li><b>Peso</b>: número + "kg" (ej. <i>"peso de 16 kg"</i>, "16.5kg", "59. 5 kg" — <b>tolera espacios</b>), <code>pesa 16</code>, <code>se toma peso 16</code>, <code>psa: 16</code>/<code>pso: 16</code>, o + "libras"/"lbs" si tu báscula es en libras. También funciona solo con la palabra "peso": <i>"peso: 65"</i>, "pesa 65".</li>
       <li><b>Talla / estatura</b>: número + "cm" (ej. <i>"talla de 108 cm"</i>) o en metros (ej. "1.08 m", "1. 08 m" — <b>tolera espacios</b>, "1.08 mts"). También funciona con "mide", "talla", "estatura", "altura" sin unidad: <i>"mide 170"</i>, "se toma talla 108", "tal: 108", "t.: 108".</li>
       <li><b>Adultos</b>: con peso y talla es suficiente para calcular el IMC; no hace falta especificar sexo.</li>
@@ -2389,23 +2389,33 @@ function _riesgoParsearNota(texto, nombre) {
   }
   // Patrón 4: abreviaturas y variaciones "psa", "pso", "pt", "p."
   if (datos.pesoKg == null) {
-    m = t.match(/\b(?:psa|pso|pt|p\.)\s*[:\-]?\s*(\d+)\s*[.,]\s*(\d+)\b/i);
-    if (m) datos.pesoKg = parseFloat(m[1] + '.' + m[2]);
-    else {
-      m = t.match(/\b(?:psa|pso|pt|p\.)\s*[:\-]?\s*(\d+(?:[.,]\d+)?)\b/i);
-      if (m) datos.pesoKg = parseFloat(m[1].replace(',', '.'));
-    }
-  }
-  // Patrón 5: "pesa/peso" con número (ej. "pesa 59.5", "peso de 65 kg")
-  if (datos.pesoKg == null) {
-    m = t.match(/\bpes(?:a|o)\w*\b\s*(?:de\s+)?[:\-]?\s*(\d+)\s*[.,]\s*(\d+)/i);
+    m = t.match(/\b(?:psa|pso|pt|p\.)\s*[:\-]?\s*(\d+)\s*[.,]\s*(\d+)\s*(libras?|lb\.?s?|lbs?)?\b/i);
     if (m) {
-      datos.pesoKg = parseFloat(m[1] + '.' + m[2]);
+      const v = parseFloat(m[1] + '.' + m[2]);
+      datos.pesoKg = m[3] ? Math.round(v * 0.453592 * 10) / 10 : v;
     } else {
-      m = t.match(/\bpes(?:a|o)\w*\b\s*(?:de\s+)?[:\-]?\s*(\d+(?:[.,]\d+)?)\b/i);
+      m = t.match(/\b(?:psa|pso|pt|p\.)\s*[:\-]?\s*(\d+(?:[.,]\d+)?)\s*(libras?|lb\.?s?|lbs?)?\b/i);
       if (m) {
         const v = parseFloat(m[1].replace(',', '.'));
-        if (v >= 1.5 && v <= 400) datos.pesoKg = v;
+        datos.pesoKg = m[2] ? Math.round(v * 0.453592 * 10) / 10 : v;
+      }
+    }
+  }
+  // Patrón 5: "pesa/peso" con número (ej. "pesa 59.5", "peso de 65 kg", "pesa 155 libras")
+  if (datos.pesoKg == null) {
+    m = t.match(/\bpes(?:a|o)\w*\b\s*(?:de\s+)?[:\-]?\s*(\d+)\s*[.,]\s*(\d+)\s*(libras?|lb\.?s?|lbs?)?/i);
+    if (m) {
+      const v = parseFloat(m[1] + '.' + m[2]);
+      datos.pesoKg = m[3] ? Math.round(v * 0.453592 * 10) / 10 : v;
+    } else {
+      m = t.match(/\bpes(?:a|o)\w*\b\s*(?:de\s+)?[:\-]?\s*(\d+(?:[.,]\d+)?)\s*(libras?|lb\.?s?|lbs?)?\b/i);
+      if (m) {
+        const v = parseFloat(m[1].replace(',', '.'));
+        if (m[2]) {
+          datos.pesoKg = Math.round(v * 0.453592 * 10) / 10;
+        } else if (v >= 1.5 && v <= 400) {
+          datos.pesoKg = v;
+        }
       }
     }
   }
